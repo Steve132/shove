@@ -106,7 +106,7 @@ public:
 
 };
 
-
+/*
 template<class ALL,class T>
 struct SampleHost{
 	SampleHost(ALL& all)
@@ -124,6 +124,6 @@ int foo()
 		int
 	> ah;
 	return 0;
-}
+}*/
 
 #endif

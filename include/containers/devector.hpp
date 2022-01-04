@@ -1,7 +1,7 @@
 #include<vector>
 
 template<class T,class Allocator>
-class devector{
+class devec{
 
 private:
 	struct HackedAllocator

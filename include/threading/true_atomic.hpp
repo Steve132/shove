@@ -40,7 +40,7 @@ public:
 	using std::atomic<T>::operator T;
 	using std::operator=;
 private:
-	std::uint8_t pad[hardware_constructive_interference_size-sizeof(std::atomic<T>)];
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
 };
 
 template<class Integral>
@@ -62,7 +62,7 @@ public:
 	using std::atomic<Integral>::operator^=;
 
 private:
-	std::uint8_t pad[hardware_constructive_interference_size-sizeof(std::atomic<T>)];
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
 };
 
 template<class T>
@@ -78,7 +78,7 @@ public:
 	using std::atomic<T>::operator+=;
 	using std::atomic<T>::operator-=;
 private:
-	std::uint8_t pad[hardware_constructive_interference_size-sizeof(std::atomic<T>)];
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
 };
 
 template<class T>
@@ -96,7 +96,7 @@ public:
 	using std::atomic<T>::operator+=;
 	using std::atomic<T>::operator-=;
 private:
-	std::uint8_t pad[hardware_constructive_interference_size-sizeof(std::atomic<T>)];
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
 };
 
 
