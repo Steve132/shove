@@ -1,0 +1,6 @@
+#ifndef THREADSAFE_PRNG_HPP
+#define THREADSAFE_PRNG_HPP
+
+
+
+#endif // THREADSAFE_PRNG_HPP

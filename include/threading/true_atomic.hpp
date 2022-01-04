@@ -28,6 +28,9 @@
 #endif
 
 
+
+struct true_sharing
+
 //general case
 //atomic weak_ptr and atomic_shared_ptr are covered by the general case.
 template<class T,class Enable=void>

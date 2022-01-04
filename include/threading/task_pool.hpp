@@ -1,0 +1,4 @@
+#ifndef SHV_TASK_POOL_HPP
+#define SHV_TASK_POOL_HPP
+
+#endif // TASK_POOL_HPP
