@@ -1,3 +1,8 @@
+#ifndef SHV_BUFFER_HPP
+#define SHV_BUFFER_HPP
+
+
+
 template<class T,class Allocator>
 class buffer
 {
@@ -25,3 +30,5 @@ private:
 	} m_data;
 };
 
+
+#endif
