@@ -1,13 +1,14 @@
-#ifndef TRUE_ATOMIC_HPP
-#define TRUE_ATOMIC_HPP
+#ifndef SHV_TRUE_ATOMIC_HPP
+#define SHV_TRUE_ATOMIC_HPP
 
+/*
 #ifdef __linux__
 #include<linux/cache.h>
 #endif
 
 #if defined(__x86_64__) || defined(_M_ARM64) || defined(_M_IX86) || defined(_M_AMD64)
 	#define L1_CACHE_BYTES 64
-#endif
+#endif*/
 
 #include<new>
 #include<atomic>
@@ -16,6 +17,9 @@
 #include<type_traits>
 #include<memory>
 
+
+namespace shv
+{
 #ifdef __cpp_lib_hardware_interference_size
 	using std::hardware_constructive_interference_size;
 	using std::hardware_destructive_interference_size;
@@ -27,81 +31,36 @@
 	constexpr std::size_t hardware_destructive_interference_size = 256;
 #endif
 
-
-
-struct true_sharing
-
-//general case
-//atomic weak_ptr and atomic_shared_ptr are covered by the general case.
 template<class T,class Enable=void>
-struct alignas(hardware_constructive_interference_size) 
-true_atomic:
-	public std::atomic<T>
+struct alignas(hardware_constructive_interference_size) true_sharing:
+	public T
 {
 public:
-	using std::atomic<T>::atomic;
-	using std::atomic<T>::operator T;
-	using std::operator=;
+	using T::T;
 private:
-	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
-};
-
-template<class Integral>
-struct alignas(hardware_constructive_interference_size) 
-true_atomic<Integral,typename std::enable_if<std::is_integral<Integral>::value>::type>:
-	public std::atomic<Integral>
-{
-public:
-	using std::atomic<Integral>::atomic;
-	using std::atomic<Integral>::operator Integral;
-	using std::operator=;
-
-	using std::atomic<Integral>::operator++;
-	using std::atomic<Integral>::operator--;
-	using std::atomic<Integral>::operator+=;
-	using std::atomic<Integral>::operator-=;
-	using std::atomic<Integral>::operator&=;
-	using std::atomic<Integral>::operator|=;
-	using std::atomic<Integral>::operator^=;
-
-private:
-	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(T)];
 };
 
 template<class T>
-struct alignas(hardware_constructive_interference_size) 
-true_atomic<T,typename std::enable_if<std::is_floating_point<T>::value>::type>:
-	public std::atomic<T>
+struct alignas(hardware_constructive_interference_size)
+	true_sharing<T,std::enable_if_t<!std::is_class<T>::value> >
 {
 public:
-	using std::atomic<T>::atomic;
-	using std::atomic<T>::operator T;
-	using std::operator=;
+	template<class ...Args>
+	true_sharing(Args&&... args):
+		data(std::forward<Args>(args)...)
+	{}
 
-	using std::atomic<T>::operator+=;
-	using std::atomic<T>::operator-=;
+	operator T& () { return data; }
+	operator const T& () const { return data ;}
 private:
-	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
+	T data;
+	std::uint8_t pad[hardware_constructive_interference_size % sizeof(T)];
 };
 
 template<class T>
-struct alignas(hardware_constructive_interference_size) 
-true_atomic<T,typename std::enable_if<std::is_pointer<T>::value>::type>:
-	public std::atomic<T>
-{
-public:
-	using std::atomic<T>::atomic;
-	using std::atomic<T>::operator T;
-	using std::operator=;
+using true_atomic=true_sharing<std::atomic<T>>;
 
-	using std::atomic<T>::operator++;
-	using std::atomic<T>::operator--;
-	using std::atomic<T>::operator+=;
-	using std::atomic<T>::operator-=;
-private:
-	std::uint8_t pad[hardware_constructive_interference_size % sizeof(std::atomic<T>)];
-};
-
-
+}
 
 #endif
