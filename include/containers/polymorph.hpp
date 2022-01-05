@@ -30,42 +30,42 @@ public:
 	template<class ...Args>
 	polymorph(Args&&... args):
 		internal{std::make_any<T>(args...)}
-	{	update_ptr();	}
+	{	update_ptr<T>();	}
 
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(const U& u):internal(u)
-	{	update_ptr();	}
+	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(U&& u):internal(std::move(u))
-	{	update_ptr();	}
+	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(const U& u){
 		internal=u;
-		update_ptr();
+		update_ptr<U>();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(U&& u){
 		internal=std::move(u);
-		update_ptr();
+		update_ptr<U>();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(const polymorph<U>& u):internal(u)
-	{	update_ptr();	}
+	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(polymorph<U>&& u):internal(std::move(u))
-	{	update_ptr();	}
+	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(polymorph<U>&& u){
 		internal=std::move(u);
-		update_ptr();
+		update_ptr<U>();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(const polymorph<U>& u){
 		internal=u;
-		update_ptr();
+		update_ptr<U>();
 		return *this;
 	}
 
