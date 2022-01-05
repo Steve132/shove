@@ -75,20 +75,14 @@ public:
 	{ return std::move(*ptr); }
 	constexpr operator const T&() const& noexcept
 	{ return *ptr; }
-	constexpr operator const T() const noexcept
-	{ return *ptr; }
 	constexpr const T* operator &() const noexcept
 	{ return ptr; }
 	constexpr operator T&&() && noexcept
 	{ return std::move(*ptr); }
 	constexpr operator T&() & noexcept
 	{ return *ptr; }
-	constexpr operator T() noexcept
-	{ return *ptr; }
 	constexpr T* operator &() noexcept
 	{ return ptr; }
-
-
 
 	//Member calls (technically a pointer semantic, but convenient)
 	constexpr const T*
