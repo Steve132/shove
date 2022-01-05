@@ -22,8 +22,7 @@ private:
 		if constexpr ((!downcast_is_safe) && std::is_base_of_v<U,T> && std::is_polymorphic_v<U> && !std::is_same_v<U,T>){
 			ptr=dynamic_cast<T*>(uptr);
 		}
-		else
-		{
+		else{
 			ptr=static_cast<T*>(uptr);
 		}
 	}
@@ -31,42 +30,42 @@ public:
 	template<class ...Args>
 	polymorph(Args&&... args):
 		internal{std::make_any<T>(args...)}
-	{	ptr=std::any_cast<T>(&internal);	}
+	{	update_ptr();	}
 
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(const U& u):internal(u)
-	{	ptr=std::any_cast<U>(&internal);	}
+	{	update_ptr();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(U&& u):internal(std::move(u))
-	{	ptr=std::any_cast<U>(&internal);	}
+	{	update_ptr();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(const U& u){
 		internal=u;
-		ptr=std::any_cast<U>(&internal);
+		update_ptr();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(U&& u){
 		internal=std::move(u);
-		ptr=std::any_cast<U>(&internal);
+		update_ptr();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(const polymorph<U>& u):internal(u)
-	{	ptr=std::any_cast<U>(&internal);	}
+	{	update_ptr();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph(polymorph<U>&& u):internal(std::move(u))
-	{	ptr=std::any_cast<U>(&internal);	}
+	{	update_ptr();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(polymorph<U>&& u){
 		internal=std::move(u);
-		ptr=std::any_cast<U>(&internal);
+		update_ptr();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(const polymorph<U>& u){
 		internal=u;
-		ptr=std::any_cast<U>(&internal);
+		update_ptr();
 		return *this;
 	}
 
@@ -81,10 +80,9 @@ public:
 	}
 
 private:
-
 	std::any internal;
 	T* ptr;
 };
 
 }
-#endif // POLYMORPH_HPP
+#endif // SHV_POLYMORPH_HPP
