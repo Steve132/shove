@@ -28,7 +28,7 @@ private:
 	}
 public:
 	template<class ...Args>
-	polymorph(Args&&... args):
+	explicit polymorph(Args&&... args):
 		internal{std::make_any<T>(args...)}
 	{	update_ptr<T>();	}
 
@@ -51,34 +51,34 @@ public:
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
-	polymorph(const polymorph<U>& u):internal(u)
+	polymorph(const polymorph<U>& u):internal(u.internal)
 	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
-	polymorph(polymorph<U>&& u):internal(std::move(u))
+	polymorph(polymorph<U>&& u):internal(std::move(u.internal))
 	{	update_ptr<U>();	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(polymorph<U>&& u){
-		internal=std::move(u);
+		internal=std::move(u.internal);
 		update_ptr<U>();
 		return *this;
 	}
 	template<class U,typename std::enable_if_t <is_polymorph_allowed<U>::value, int > = 0>
 	polymorph& operator=(const polymorph<U>& u){
-		internal=u;
+		internal=u.internal;
 		update_ptr<U>();
 		return *this;
 	}
 
 	//Value semantic observables
 	//Todo some of these observers might be too aggressive
-	constexpr operator const T&&() const&& noexcept
-	{ return std::move(*ptr); }
+	//constexpr operator const T&&() const&& noexcept
+	//{ return std::move(*ptr); }
 	constexpr operator const T&() const& noexcept
 	{ return *ptr; }
 	constexpr const T* operator &() const noexcept
 	{ return ptr; }
-	constexpr operator T&&() && noexcept
-	{ return std::move(*ptr); }
+	//constexpr operator T&&() && noexcept
+	//{ return std::move(*ptr); }
 	constexpr operator T&() & noexcept
 	{ return *ptr; }
 	constexpr T* operator &() noexcept

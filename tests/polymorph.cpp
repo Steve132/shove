@@ -37,12 +37,6 @@ void call_it(Base& obj)
 
 int main()
 {
-	shv::polymorph<Base> b;
-	b=Derived();
-	call_it(b);
-	b=Base();
-	call_it(b);
-
 	std::vector<shv::polymorph<Base>> objects;
 	objects.push_back(Base{});
 	objects.push_back(Derived{});
@@ -50,5 +44,10 @@ int main()
 	std::cout << "Objects populated" << std::endl;
 	std::vector<shv::polymorph<Base>> obj_copies=objects;
 
+	std::cout << "Loop" << std::endl;
+	for(auto o : obj_copies)
+	{
+		call_it(o);
+	}
 	return 0;
 }
