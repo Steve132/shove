@@ -3,8 +3,6 @@
 
 #include<memory>
 
-
-
 //Much thanks from https://memory.foonathan.net/md_doc_internal_usage.html to explain this.
 //https://stackoverflow.com/questions/27471053/example-usage-of-propagate-on-container-move-assignment
 

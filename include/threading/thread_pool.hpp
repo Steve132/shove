@@ -3,6 +3,8 @@
 
 #include<thread>
 #include<type_traits>
+#include<vector>
+#include<future>
 
 namespace shv {
 
@@ -38,10 +40,8 @@ protected:
 		std::invoke_result_t<Callable>
 	> insert_immediately(Callable&& cb)
 	{
-		std::package_task task(std::forward<Callable>(cb));
+		std::packaged_task task(std::forward<Callable>(cb));
 	}
-
-	std::
 public:
 	template<class Callable>
 	std::future<
@@ -50,6 +50,8 @@ public:
 	{
 
 	}
+
+
 };
 
 //
@@ -61,3 +63,9 @@ public:
 }
 
 #endif
+
+int main()
+{
+	shv::worker_pool p;
+	return 0;
+}
