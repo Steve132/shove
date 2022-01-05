@@ -69,15 +69,54 @@ public:
 		return *this;
 	}
 
-	operator T&() {
-		return *ptr;
-	}
-	operator T&&(){
-		return std::move(*ptr);
-	}
-	operator const T&() const{
-		return *ptr;
-	}
+	//Value semantic observables
+	//Todo some of these observers might be too aggressive
+	constexpr operator const T&&() const&& noexcept
+	{ return std::move(*ptr); }
+	constexpr operator const T&() const& noexcept
+	{ return *ptr; }
+	constexpr operator const T() const noexcept
+	{ return *ptr; }
+	constexpr const T* operator &() const noexcept
+	{ return ptr; }
+	constexpr operator T&&() && noexcept
+	{ return std::move(*ptr); }
+	constexpr operator T&() & noexcept
+	{ return *ptr; }
+	constexpr operator T() noexcept
+	{ return *ptr; }
+	constexpr T* operator &() noexcept
+	{ return ptr; }
+
+
+
+	//Member calls (technically a pointer semantic, but convenient)
+	constexpr const T*
+	operator->() const noexcept
+	{ return ptr; }
+
+	constexpr T*
+	operator->() noexcept
+	{ return ptr; }
+
+	/*Pointer semantics
+
+	constexpr const T&
+	operator*() const& noexcept
+	{ return *ptr; }
+
+	constexpr T&
+	operator*()& noexcept
+	{ return *ptr; }
+
+	constexpr T&&
+	operator*()&& noexcept
+	{ return std::move(*ptr); }
+
+	constexpr const T&&
+	operator*() const&& noexcept
+	{ return std::move(*ptr); }
+	*/
 
 private:
 	std::any internal;
