@@ -8,6 +8,12 @@
 namespace shv
 {
 
+namespace {
+	struct VirtualFive{
+
+	};
+}
+
 template<class T,bool downcast_is_safe=false>
 class polymorph
 {
