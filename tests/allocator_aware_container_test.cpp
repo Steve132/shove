@@ -6,6 +6,6 @@
 
 int main()
 {
-
+	shv::buffer<int> b;
 	return 0;
 }

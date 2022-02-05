@@ -5,7 +5,7 @@
 
 namespace shv
 {
-template<class T,class Allocator>
+template<class T,class Allocator=std::allocator<T>>
 class buffer: protected allocator_aware_container<Allocator>
 {
 private:
