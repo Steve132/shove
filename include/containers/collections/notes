@@ -1,0 +1,107 @@
+
+
+/*  This is about defining a bunch of specific requirements. for data structures.
+
+uint_random_access yes/no
+
+preserve_iterators yes/no
+		incompatible with contiguous or semicontiguous.  Requires sparse or fragmented
+
+add remove (based on an iterator, and add returns the resulting iterator (maybe?  Weird shit with journaling tbh))
+	add
+	remove
+
+pushpop implies
+	push_pop_same
+	push_pop_opposite
+	push_pop_front_default (select push_front == pop)
+
+memory layout requirements
+	sparse (this should allow a cache option)
+	semicontiguous
+	contiguous
+	fragmented (default?)
+
+double_sided
+	has a left and right interface
+
+Here's a super fucking cool idea:  Implement the MonetDB model using MIR JIT as the internal JIT, and also generate GPU code and x86 code and threaded code for the backend from the MIR intermediates.
+Use an entity model like rocksDB and the monet internals but use various data structures as internals.  Particularly std::hive for entity models, as well as hashtabels, minimum perfect hash tables, an expando circular buffer based on a buffer (semicontiguous_fifo), or a devec_based.
+
+
+All of these allow a *callback* on iterator invalidation and some understanding of iterator behavior.
+
+Basically:	stack (push pop from one side)
+				sparse (forward_list)
+				random_access_sparse (deque)
+				contiguous (vector)  (with max error, max wait, resize)
+
+			double_stack (push pop from both sides)
+				sparse (list)
+				random_access_sparse (deque)
+				semicontiguous (vector with cyclical buffer)
+				contiguous (devector)
+
+			priority_collection (priority push pop one side)
+				sparse (forward_list or brodal/fib heap or binary heap)
+				random_access_sparse (deque or brodal/fib heap with leaf nodes)
+				contiguous (vector heap)
+				fragmented (hive?)
+
+			double_priority_collection (priority push pop two sides)
+				same as above but with semicontiguous option that uses either two hives or a devector with two hives?
+				or just two dense heaps inside a single heap.
+				or full contiguous that's a dvector.
+
+			fifo (adapter from double stack with stuff removed)
+
+			bag (insert/remove but the front and back is irrelevant)
+				sparse (set)
+				random_access_sparse (deque)
+				contiguous (vector with swap back behavior) (iterator invalidation concerns)
+				fragmented (hive)
+
+			sorted bag (insert/remove anywhere. Sorted)
+				sparse (btree? binary search tree? red black? etc.)
+				contiguous (vector with insertion sort? merge sort?)
+				semicontiguous (same as bag)
+				fragmented (hive with sorting?)
+
+			index adapter (add an index for any container that has iterators?)
+				hash index?
+				range index?
+				unique index?
+				container based index?
+				index gets updated on callback?
+
+			journal adapter
+				(cache commands before they actually occur on the data structure)
+				inconsistent (ignore the commands in the journal on read).
+				thread consistent (ignore commands from other threads in the journal on read)
+				consistent (never ignore journal commands)
+
+			threadsafe adapter
+				try to make the collection threadsafe
+				lockfree ?
+				waitfree ?
+
+			persistent adapter (types
+				(durability, consistency, etc?)
+
+			copy on write?
+				(etc.)
+
+			serial adapter (command this interface from a serialized stream according to some protocol)
+
+			map (associative container)
+				map implements index base.
+				hashtable, etc.
+				minimum perfect hashing?  (frozen)
+
+			sorted map (associative container)
+				sparse (search tree)
+				indexed
+
+
+Good trick: you can always use another layer of indirection to solve a template alias specialization
+https://probablydance.com/2014/01/16/alias-templates-with-partial-specialization-sfinae-and-everything/
