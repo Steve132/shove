@@ -1,0 +1,93 @@
+
+https://www.boost.org/doc/libs/1_50_0/boost/container/vector.hpp
+struct<class T>
+struct blocklist
+{
+protected:
+	std::list<std::vector<T>> blocks;
+public:
+	using iterator=std::pair<std::list<std::vector<T>>::iterator>; //this is more complicated but you get the gist.
+
+	iterator push_back(const T& a) {
+		if(blocks.back().capacity()==blocks.back().size())
+		{
+			current_blocksize=(blocks.back().capacity()*3)/2;
+			std::vector<T> z;
+			z.reserve(current_blocksize);
+			blocks.emplace_back(std::move(z));
+		}
+		blocks.back().push_back(a);
+		return iterator{blocks.end(),blocks.back().end()};
+	}
+	iterator push_front(const T& a) {
+		if(blocks.back().capacity()==blocks.back().size())
+		{
+			current_blocksize=(blocks.back().capacity()*3)/2;
+			std::vector<T> z;
+			z.reserve(current_blocksize);
+			blocks.emplace_back(std::move(z));
+		}
+		blocks.back().push_back(a);
+		return iterator{blocks.end(),blocks.back().end()};
+	}
+	void pop_back(const T&);
+	void pop_front(const T&);
+};
+
+
+template<class T>
+struct hive:
+{
+	struct skip_node{
+		alignas(T) unsigned char data[sizeof(T)];
+		uint16_t forward;
+		uint16_t backward;
+	};
+	using base_sequence=blocklist<skip_node<T>>;
+	using base_iterator=base_sequence::iterator;
+	std::stack<base_iterator> unused;
+
+	base_sequence bdata;
+	size_t _size;
+public:
+	struct iterator {
+	{
+	protected:
+		protected base_iterator bi;
+	public:
+		operator++()
+		{
+			bi=std::advance(bi,bi->forward);
+		}
+		operator*() { return *bi; };
+	};
+	void insert(const T& t){
+		if(unused.empty()) {
+			bdata.push_back(t);
+		}
+		else
+		{
+			auto it=unused.pop();
+			std::construct_at(reinterpret_cast<T*>(it->data),t);
+			uint16_t f=it->forward;
+			uint16_t b=it->back;
+			(it-b)->forward=b;
+			(it+f)->back=f;
+		}
+		_size++;
+	}
+	void erase(const iterator& it)
+	{
+		unused.push(it);
+		
+		auto it=unused.pop();
+		std::destroy_at(reinterpret_cast<T*>(it->data));
+		uint16_t f=it->forward;
+		uint16_t b=it->back;
+		(it-b)->forward=b+f;
+		(it+f)->back=b+f;
+		_size--;
+	}
+};
+
+A hive is a *pool* abstract data type.

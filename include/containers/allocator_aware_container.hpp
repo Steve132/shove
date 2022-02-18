@@ -6,6 +6,105 @@
 
 namespace shv
 {
+template<class Container>
+struct allocator_operations
+{
+public:
+
+};
+
+template<class Allocator>
+struct allocator_aware_behaviors
+{
+public:
+
+private:
+	template<bool on_move_assignment>
+	static constexpr bool should_propagate_alloc_on_assignment_static() noexcept
+	{
+		if constexpr (std::allocator_traits<Allocator>::is_always_equal)
+		{
+			return false;
+		}
+		else if constexpr (on_move_assignment)
+		{
+			return std::allocator_traits<Allocator>::propagate_on_move_assignment;
+		}
+		else {
+			return std::allocator_traits<Allocator>::propagate_on_copy_assignment;
+		}
+	}
+
+	template<bool on_move_assignment,class OtherAllocator>
+	static bool should_propagate_alloc_on_assignment(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
+	{
+		if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
+		{
+			return true;
+		}
+		else{
+			return old_alloc!=other_alloc;
+		}
+	}
+	template<bool on_move_assignment,class OtherAllocator>
+	static const Allocator& get_propagated_allocator(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
+	{
+		if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
+		{
+			return other_alloc;
+		}
+		else{
+			return old_alloc; //if they're equal then this doesn't matter.
+		}
+	}
+
+protected:
+	template<class OtherAllocator,
+			 class ClearFunc,
+			 class ReAllocCopyFunc>
+	static const Allocator& copy_assignment(
+		const Allocator& old_alloc,
+		const OtherAllocator& other_alloc,
+		ClearFunc&& Clear,
+		ReAllocCopyFunc&& ReAllocCopy
+		)
+	{
+		bool prop=should_propagate_alloc_on_assignment<false>(other_alloc);
+		Clear(old_alloc,prop); //boolean decides if also delete.
+		const Allocator& new_alloc = prop ? other_alloc : old_alloc;
+		ReAllocCopy(new_alloc); //realloc if needed and copy
+		return new_alloc;
+	}
+
+
+	static constexpr bool nothrow_move_assignment=should_propagate_alloc_on_assignment_static<true>();
+
+	template<
+		class OtherAllocator,
+		class ClearFunc,
+		class MoveFunc,
+		class ReAllocMoveFunc>
+	static const Allocator& move_assignment(const Allocator& old_alloc,
+											const OtherAllocator& other_alloc,
+											ClearFunc&& Clear,
+											MoveFunc&& Move,
+											ReAllocMoveFunc&& ReAllocMove) noexcept(nothrow_move_assignment)
+	{
+		bool prop=should_propagate_alloc_on_assignment<true>(other_alloc);
+		Clear(old_alloc,prop);
+
+		if(prop)
+		{
+			Move(other_alloc,true);
+			return other_alloc;
+		}
+		else
+		{
+			ReAllocMove(old_alloc);
+			return old_alloc;
+		}
+	}
+};
 
 template<class Allocator>
 struct allocator_aware_container: protected Allocator
@@ -41,100 +140,10 @@ struct allocator_aware_container: protected Allocator
 	template<class OtherAllocator>
 	constexpr allocator_aware_container& operator=(const OtherAllocator& other ) noexcept = delete;
 
-	using alloc_traits=std::allocator_traits<Allocator>;
-
+	using allocator_type=Allocator;
 protected:
 
-	struct behaviors
-	{
-	private:
-		template<bool on_move_assignment>
-		static constexpr bool should_propagate_alloc_on_assignment_static() noexcept
-		{
-			if constexpr (std::allocator_traits<Allocator>::is_always_equal)
-			{
-				return false;
-			}
-			else if constexpr (on_move_assignment)
-			{
-				return std::allocator_traits<Allocator>::propagate_on_move_assignment;
-			}
-			else {
-				return std::allocator_traits<Allocator>::propagate_on_copy_assignment;
-			}
-		}
 
-		template<bool on_move_assignment,class OtherAllocator>
-		static bool should_propagate_alloc_on_assignment(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
-		{
-			if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
-			{
-				return true;
-			}
-			else{
-				return old_alloc!=other_alloc;
-			}
-		}
-		template<bool on_move_assignment,class OtherAllocator>
-		static const Allocator& get_propagated_allocator(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
-		{
-			if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
-			{
-				return other_alloc;
-			}
-			else{
-				return old_alloc; //if they're equal then this doesn't matter.
-			}
-		}
-
-	protected:
-		template<class OtherAllocator,
-				 class ClearFunc,
-				 class ReAllocCopyFunc>
-		static const Allocator& copy_assignment(
-			const Allocator& old_alloc,
-			const OtherAllocator& other_alloc,
-			ClearFunc&& Clear,
-			ReAllocCopyFunc&& ReAllocCopy
-			)
-		{
-			bool prop=should_propagate_alloc_on_assignment<false>(other_alloc);
-			Clear(prop); //boolean decides if also delete.
-			const Allocator& new_alloc = prop ? other_alloc : old_alloc;
-			ReAllocCopy(new_alloc); //realloc if needed and copy
-			return new_alloc;
-		}
-
-
-		static constexpr bool nothrow_move_assignment=should_propagate_alloc_on_assignment_static<true>();
-
-		template<
-			class OtherAllocator,
-			class ClearFunc,
-			class MoveFunc,
-			class ReAllocMoveFunc>
-		static const Allocator& move_assignment(const Allocator& old_alloc,
-												const OtherAllocator& other_alloc,
-												ClearFunc&& Clear,
-												MoveFunc&& Move,
-												ReAllocMoveFunc&& ReAllocMove) noexcept(nothrow_move_assignment)
-		{
-			bool prop=should_propagate_alloc_on_assignment<true>(other_alloc);
-			Clear(prop);
-			if(prop)
-			{
-				Move(other_alloc);
-				return other_alloc;
-			}
-			else
-			{
-				ReAllocMove(old_alloc);
-				return old_alloc;
-			}
-		}
-
-
-	};
 };
 
 }

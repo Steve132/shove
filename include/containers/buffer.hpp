@@ -11,7 +11,10 @@ class buffer: protected allocator_aware_container<Allocator>
 private:
 	using atraits=std::allocator_traits<Allocator>;
 	using aac=allocator_aware_container<Allocator>;
-	using aac_behaviors=typename aac::behaviors;
+	using aa_behaviors=allocator_aware_behaviors<Allocator>;
+
+
+
 public:
 	using value_type=T;
 	using allocator_type=Allocator;
@@ -28,31 +31,47 @@ public:
 	using const_reverse_iterator=std::reverse_iterator<const_iterator>;
 public:
 
-	constexpr buffer() noexcept(noexcept(Allocator()));
+	constexpr buffer() noexcept(noexcept(Allocator()))
+	{}
 
-	constexpr explicit buffer( const Allocator& alloc ) noexcept;
+	constexpr explicit buffer( const Allocator& alloc ) noexcept:
+		aac(alloc)
+	{}
 
 	constexpr buffer( size_type count,
 					 const T& value,
-					 const Allocator& alloc = Allocator());
+					 const Allocator& alloc = Allocator()):
+		aac(alloc)
+	{
+		assign(count,value);
+	}
 
 	constexpr explicit buffer( size_type count,
-							  const Allocator& alloc = Allocator() );
+							  const Allocator& alloc = Allocator() ):
+		buffer(count,alloc)
+	{}
+
 	template< class InputIt >
 	constexpr buffer( InputIt first, InputIt last,
-					 const Allocator& alloc = Allocator() );
+					 const Allocator& alloc = Allocator() ):
+		  aac(alloc)
+	{
+		assign(first,last);
+	}
 
-	constexpr buffer( const buffer& other );
-	constexpr buffer( const buffer& other, const Allocator& alloc );
+	constexpr buffer( const buffer& other ):
+		  aac(aa_behaviors::select_on_copy_constructor(other.get_allocator()))
+	{}
+	constexpr buffer( const buffer& other, const Allocator& alloc ):
+		aac(alloc)
+	{}
 
-	constexpr buffer( buffer&& other ) noexcept;
+	constexpr buffer( buffer&& other ) noexcept
+	{}
 	constexpr buffer( buffer&& other, const Allocator& alloc );
 
 	constexpr buffer( std::initializer_list<T> init,
 					 const Allocator& alloc = Allocator() );
-
-	//constexpr
-		~buffer(); //TODO C++20
 
 	constexpr void assign( size_type count, const T& value );
 
@@ -64,13 +83,15 @@ public:
 	constexpr buffer& operator=( const buffer& other );
 
 	constexpr buffer& operator=( buffer&& other ) noexcept(
-		aac_behaviors::nothrow_move_assignment
+		aa_behaviors::nothrow_move_assignment
 	);
 
 	constexpr buffer& operator=( std::initializer_list<T> ilist );
-
+	//constexpr
+	~buffer()  //TODO C++20
+	{}
+	using aac::get_allocator;
 };
 }
-
 
 #endif

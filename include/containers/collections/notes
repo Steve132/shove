@@ -2,7 +2,7 @@
 
 /*  This is about defining a bunch of specific requirements. for data structures.
 
-uint_random_access yes/no
+indexed_random_access yes/no
 
 preserve_iterators yes/no
 		incompatible with contiguous or semicontiguous.  Requires sparse or fragmented
@@ -10,6 +10,9 @@ preserve_iterators yes/no
 add remove (based on an iterator, and add returns the resulting iterator (maybe?  Weird shit with journaling tbh))
 	add
 	remove
+
+put get
+	this is push pop
 
 pushpop implies
 	push_pop_same
