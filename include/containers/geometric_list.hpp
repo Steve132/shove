@@ -12,8 +12,9 @@ namespace shv
 {
 
 //http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0310r0.pdf
+//https://en.algorithmica.org/hpc/data-structures/s-tree/
 //max num items? probably not.  Probably just use size_t like everything else.
-namespace detail{
+namespace geometric_list_detail{
 
 using handle_t=uint8_t; //a bucket index.
 using exponent_t=uint8_t; //the exponent for the container size. (found by doing min(h+bottom_bucket_size,max_bucket_size)
@@ -25,7 +26,7 @@ static constexpr unsigned int num_buckets=std::min(static_cast<unsigned int>(siz
 using mask_t=std::bitset<num_buckets>; //a mask can't ever be bigger than num_buckets
 
 //this should really be traits and be like based on something.  But whatever.
-struct bucketset_size_params{
+struct handle_ops{
 	template<handle_t h>
 	static constexpr exponent_t handle2exponent(){
 		constexpr exponent_t x=h+lg_min_bucket_size;
@@ -51,7 +52,7 @@ struct bucketset_size_params{
 	static constexpr handle_t smallest_handle(const mask_t& m){
 		return std::countr_zero(m.to_ullong());
 	}
-	static constexpr handle_t largest_handle(const mask_t& m){
+	static constexpr handle_t next_largest_handle(const mask_t& m){
 		return std::bit_ceil(m.to_ullong());
 	}
 };
@@ -67,7 +68,7 @@ public:
 	using allocator_traits=std::allocator_traits<allocator_type>;
 	using pointer_type=T*;
 
-	handle_t head,tail; //this is chosen so that head and tail handle are in cache if the bucketset itself is.
+	handle_t head,tail; //this is chosen so that head and tail handle are in cache if the bucketset itself is...todo pointers?
 
 	pointer_type head_ptr;
 	pointer_type tail_ptr;
@@ -75,11 +76,8 @@ public:
 	//these arrays might be able to be allocated on the heap to save stack space.  Theyre only needed in edge cases..or could be small size versions for low occupancy.
 	//or whatever.
 	//ooh you could do compaction like an indirection buffer. (out of cache?) hmm benchmarking is needed.
-	std::array<T*,H> lower_ptr;
-	std::array<size_t,H> lower_static_index; //this is the total index space counting from the front...but the head changes the resulting index too.
-							//does it make the most sense for this to be signed? then the end of the head is zero and you don't have to always reindex.
-							//answer: no.  Its always from the start of the empty space of the head block.  Then the head size can be subtracted.
-
+	std::array<T*,H> lower_static_ptr;
+	std::array<size_t,H> lower_static_index;
 	std::array<handle_t,H> prev,next;
 
 	mask_t allocated_mask;	//mask for the ones which have memory.
@@ -87,29 +85,31 @@ public:
 							//(no...it's gotta be << min_block first))
 	mask_t occupied_mask;	//mask for the ones which have any elements including head and tail.
 
-	//size_t tail_size;		//faster counter for sum of tail and head
-	//size_t head_size;		//this can be used instead of (tail_ptr-lower_pointer[tail])+(lower_pointer[head]-head_ptr)
-							//however this data structure can be made atomic pretty easily with compare and swap and if so then this needs to go back to the old version
 	geometric_bucket_set()
 	{
-		blank();
-	}
-	void blank(){
 		allocated_mask=0;
+		blank(0);
+	}
+
+	void blank(handle_t h)
+	{
 		occupied_mask=0;
 		full_mask=0;
-		head=0;
-		tail=0; //pretty cool, all zeros is a valid state.
-		lower_ptr={};
+		head=0x0;
+		tail=0x0;				//(this should actually initialize into single node mode with block 0.  It should always be in a state of at least one node)
+		lower_static_ptr={};
 		lower_static_index={};
 		prev={};
 		next={};
+
+		bucket_allocate(0);
+		occupied_mask[0]=true;
+
+		head_ptr=lower_static_ptr[0];
+		tail_ptr=lower_static_ptr[0];
 	}
 
 	handle_t next_available_bucket() {
-		if(occupied_mask.none()) {
-			return 0;
-		}
 		mask_t avail=~occupied_mask;
 		if(avail == 0) {
 			//TODO: out of memory.
@@ -117,9 +117,9 @@ public:
 		mask_t preallocated=(allocated_mask & avail);
 		if(preallocated.any())
 		{
-			return bucketset_size_params::smallest_handle(preallocated);
+			return handle_ops::next_largest_handle(preallocated);
 		}
-		handle_t h=bucketset_size_params::smallest_handle(avail);
+		handle_t h=handle_ops::smallest_handle(avail);
 		bucket_allocate(h);
 		return h;
 	}
@@ -130,15 +130,12 @@ public:
 		next[tail]=h;
 		prev[h]=tail;
 
-		if(occupied_mask[tail])
-		{
-			//warning this should NOT happen if tail isn't full.
-			full_mask[tail]=true;
-			size_t oldsize=bucketset_size_params::handle2size(tail);
-			lower_static_index[h]=lower_static_index[tail]+oldsize;
-		}
+		//only if push_back
+		lower_static_index[h]=lower_static_index[tail]+handle_ops::handle2size(tail);
+		occupied_mask[h]=true;
+
 		next[h]=h; //it's the tail now.
-		tail_ptr=lower_ptr[h];
+		tail_ptr=lower_static_ptr[h];
 		tail=h;
 	}
 	void push_front_bucket()
@@ -151,64 +148,87 @@ public:
 
 		//TODO: is this faster if you pointer walk it or iterate with a mask or iterate over all but filter?
 		//godbolt says the roll filter can vectorize
-
-		size_t newsize=bucketset_size_params::handle2size(h);
-		if(occupied_mask[head]) //if the current head is occupied
+		size_t newsize=handle_ops::handle2size(h);
+		for(unsigned int i=0;i<num_buckets;i++)
 		{
-			full_mask[head]=true;
-			for(unsigned int i=0;i<num_buckets;i++)
-			{
-				if(full_mask[i]) lower_static_index[i]+=newsize;
-			}
+			if(occupied_mask[i]) lower_static_index[i]+=newsize;
 		}
 
 		lower_static_index[h]=0;
+		occupied_mask[h]=true;
 
 		prev[h]=h;
-		head_ptr=lower_ptr[h]+newsize;
+		head_ptr=lower_static_ptr[h]+newsize;
 		head=h;
 	}
+	void pop_front_bucket(){
+		bucket_destroy(head);
+	}
+	void pop_back_bucket(){
+		bucket_destroy(tail);
+	}
+	void maybe_dealloc()
+	{}
+
 
 	void bucket_allocate(handle_t h)
 	{
-		auto N=bucketset_size_params::handle2size(h);
+		auto N=handle_ops::handle2size(h);
 		if(!allocated_mask[h]) {
-			lower_ptr[h]=allocator_traits::allocate(*this,N);
+			lower_static_ptr[h]=allocator_traits::allocate(*this,N);
 		}
 		allocated_mask[h]=true;
 	}
 
 	void bucket_deallocate(handle_t h)
 	{
-		auto N=bucketset_size_params::handle2size(h);
+		auto N=handle_ops::handle2size(h);
 		if(allocated_mask[h]) {
-			allocator_traits::deallocate(*this,lower_ptr[h],N);
+			allocator_traits::deallocate(*this,lower_static_ptr[h],N);
 		}
 		allocated_mask[h]=false;
 	}
 
 	void bucket_destroy(handle_t h)
 	{
-		size_t N=bucketset_size_params::handle2size(h);
-		if(h==tail){
+		if(!occupied_mask[h])
+			return;
 
+		size_t N=handle_ops::handle2size(h);
+		pointer_type bdestroy=lower_static_ptr[h];
+		pointer_type edestroy=lower_static_ptr[h]+handle_ops::handle2size(h);
+		if(h==head){
+			bdestroy=head_ptr;
+		}
+		if(h==tail){
+			edestroy=tail_ptr;
 		}
 		full_mask[h]=false;
-		occupied_mask[h]=false;
-		bucket_deallocate(h);
+		for(pointer_type b=bdestroy;b != edestroy;++b){
+			allocator_traits::destroy(*this,b);
+		}
+		if(h==head && h==tail)
+		{
+			prev[h]=h;
+			next[h]=h;
+			tail_ptr=lower_static_ptr[head];
+			head_ptr=lower_static_ptr[head];
+		}
+		else if(h==tail)
+		{
+			handle_t newtail=prev[tail];
+			tail=
+			next[newtail]=newtail;
+			prev[tail]=tail;
 
+
+		}
 	}
 
 	size_t full_size() const{
-		return bucketset_size_params::mask2size(full_mask);
+		return handle_ops::mask2size(full_mask);
 	}
-	size_t tail_size() const{
-		return tail_ptr-lower_ptr[tail];
-	}
-	size_t head_size() const{
-		size_t N=bucketset_size_params::handle2size(head);
-		return (lower_ptr[head]+N)-head_ptr; //should this be cached into a variable?
-	}
+
 
 };
 
