@@ -6,7 +6,6 @@
 #include<cstdlib>
 #include<memory>
 #include<algorithm>
-#include<bitset>
 
 namespace shv
 {
@@ -16,15 +15,31 @@ namespace shv
 //max num items? probably not.  Probably just use size_t like everything else.
 namespace geometric_list_detail{
 
-using handle_t=uint8_t; //a bucket index.
+template<unsigned int N>
+using bitwidth_int=
+	std::conditional_t<(N <= 8), uint_least8_t,
+		std::conditional_t<(N <= 16),uint_least16_t,
+		std::conditional_t<(N <= 32),uint_least32_t,uint_least64_t>
+		>>;
+
+using handle_t=uint8_t; //a bucket label.
+using block_index_t=uint8_t; //an iterator to a block
 using exponent_t=uint8_t; //the exponent for the container size. (found by doing min(h+bottom_bucket_size,max_bucket_size)
 											//actually it should be
 static constexpr unsigned int lg_min_bucket_size=0;
 static constexpr unsigned int lg_max_bucket_size=32;
 //maybe round this to a power of 4 or 2 or something for the search eventually.
 static constexpr unsigned int num_buckets=std::min(static_cast<unsigned int>(sizeof(size_t)*8),lg_max_bucket_size-lg_min_bucket_size);
-using mask_t=std::bitset<num_buckets>; //a mask can't ever be bigger than num_buckets
-
+using mask_t=bitwidth_int<num_buckets>; //a mask can't ever be bigger than num_buckets
+static inline void maskset(mask_t& x,handle_t dex){
+	x|=(mask_t(1) << dex);
+}
+static inline bool masktest(const mask_t& x,handle_t dex){
+	return (x>>dex) & 0x1;
+}
+static inline void maskclear(mask_t& x,handle_t dex){
+	x&=~((mask_t(1) << dex));
+}
 //this should really be traits and be like based on something.  But whatever.
 struct handle_ops{
 	template<handle_t h>
@@ -47,13 +62,13 @@ struct handle_ops{
 		return exponent2size(handle2exponent(h));
 	}
 	static constexpr size_t mask2size(const mask_t& m) {
-		return static_cast<size_t>(m.to_ullong() << lg_min_bucket_size);
+		return static_cast<size_t>(m << lg_min_bucket_size);
 	}
 	static constexpr handle_t smallest_handle(const mask_t& m){
-		return std::countr_zero(m.to_ullong());
+		return std::countr_zero(m);
 	}
 	static constexpr handle_t next_largest_handle(const mask_t& m){
-		return std::bit_ceil(m.to_ullong());
+		return std::bit_ceil(m);
 	}
 };
 
@@ -68,21 +83,13 @@ public:
 	using allocator_traits=std::allocator_traits<allocator_type>;
 	using pointer_type=T*;
 
-	handle_t head,tail; //this is chosen so that head and tail handle are in cache if the bucketset itself is...todo pointers?
-
 	pointer_type head_ptr;
 	pointer_type tail_ptr;
+	alignas(64) std::array<handle_t,H> block_sequence;
+	block_index_t block_count; //this is chosen so that head and tail handle are in cache if the bucketset itself is...todo pointers?
 
-	//these arrays might be able to be allocated on the heap to save stack space.  Theyre only needed in edge cases..or could be small size versions for low occupancy.
-	//or whatever.
-	//ooh you could do compaction like an indirection buffer. (out of cache?) hmm benchmarking is needed.
 	std::array<T*,H> lower_static_ptr;
-	std::array<size_t,H> lower_static_index;
-	std::array<handle_t,H> prev,next;
-
 	mask_t allocated_mask;	//mask for the ones which have memory.
-	mask_t full_mask;		//mask for the ones which are full and not head and not tail (because of binary, this is also the full count inside)
-							//(no...it's gotta be << min_block first))
 	mask_t occupied_mask;	//mask for the ones which have any elements including head and tail.
 
 	geometric_bucket_set()
@@ -91,22 +98,65 @@ public:
 		blank(0);
 	}
 
+	void push_back_bucket() //TODO: you could use a size hint here to more intelligently push back the buckets.
+	{
+		handle_t h=next_available_bucket();
+
+		maskset(occupied_mask,h);
+	}
+	void push_front_bucket()
+	{
+		handle_t h=next_available_bucket();
+
+		maskset(occupied_mask,h);
+	}
+	void pop_front_bucket(){
+		erase_bucket(0);
+	}
+	void pop_back_bucket(){
+		erase_bucket(block_count-1);
+	}
+	void erase_bucket(block_index_t i)
+	{
+		handle_t h=block_sequence[i];
+		if(!masktest(occupied_mask,h))
+			return;
+
+		size_t N=handle_ops::handle2size(h);
+		pointer_type bdestroy=lower_static_ptr[h];
+		pointer_type edestroy=lower_static_ptr[h]+handle_ops::handle2size(h);
+
+		if(i==0){
+			bdestroy=head_ptr;
+		}
+		if(i==block_count-1){
+			edestroy=tail_ptr;
+		}
+		for(pointer_type b=bdestroy;b != edestroy;++b){
+			allocator_traits::destroy(*this,b);
+		}
+
+		if(block_count==1)
+		{
+			head_ptr=tail_ptr=lower_static_ptr[h]+N/2;
+			return;
+		}
+		maskset(occupied_mask,h);
+		std::rotate(block_sequence.begin()+i,block_sequence.begin()+i+1, block_sequence.end()+block_count);
+
+		maybe_dealloc();
+	}
+private:
+
 	void blank(handle_t h)
 	{
+		//while(block_count) bucket_deallocate(block_handles[block_count--]);
 		occupied_mask=0;
-		full_mask=0;
-		head=0x0;
-		tail=0x0;				//(this should actually initialize into single node mode with block 0.  It should always be in a state of at least one node)
+		block_count=0;
 		lower_static_ptr={};
-		lower_static_index={};
-		prev={};
-		next={};
 
-		bucket_allocate(0);
-		occupied_mask[0]=true;
-
-		head_ptr=lower_static_ptr[0];
-		tail_ptr=lower_static_ptr[0];
+		bucket_allocate(h);
+		maskset(occupied_mask,h);
 	}
 
 	handle_t next_available_bucket() {
@@ -115,7 +165,7 @@ public:
 			//TODO: out of memory.
 		}
 		mask_t preallocated=(allocated_mask & avail);
-		if(preallocated.any())
+		if(preallocated)
 		{
 			return handle_ops::next_largest_handle(preallocated);
 		}
@@ -124,110 +174,44 @@ public:
 		return h;
 	}
 
-	void push_back_bucket() //TODO: you could use a size hint here to more intelligently push back the buckets.
-	{
-		handle_t h=next_available_bucket();
-		next[tail]=h;
-		prev[h]=tail;
-
-		//only if push_back
-		lower_static_index[h]=lower_static_index[tail]+handle_ops::handle2size(tail);
-		occupied_mask[h]=true;
-
-		next[h]=h; //it's the tail now.
-		tail_ptr=lower_static_ptr[h];
-		tail=h;
-	}
-	void push_front_bucket()
-	{
-		handle_t h=next_available_bucket();
-		prev[head]=h;
-		next[h]=head;
-
-		//warning this should NOT happen if head isn't full.
-
-		//TODO: is this faster if you pointer walk it or iterate with a mask or iterate over all but filter?
-		//godbolt says the roll filter can vectorize
-		size_t newsize=handle_ops::handle2size(h);
-		for(unsigned int i=0;i<num_buckets;i++)
-		{
-			if(occupied_mask[i]) lower_static_index[i]+=newsize;
-		}
-
-		lower_static_index[h]=0;
-		occupied_mask[h]=true;
-
-		prev[h]=h;
-		head_ptr=lower_static_ptr[h]+newsize;
-		head=h;
-	}
-	void pop_front_bucket(){
-		bucket_destroy(head);
-	}
-	void pop_back_bucket(){
-		bucket_destroy(tail);
-	}
 	void maybe_dealloc()
-	{}
+	{
+		int cnt=0;
+		handle_t m1=0,m2=0;
+		for(unsigned int i=block_count;i<H;i++)
+		{
+			handle_t h=block_sequence[i];
+			if(masktest(allocated_mask,h))
+			{
+				if(h > m2) {
+					std::swap(h,m2);
+					if(m2 > m1) std::swap(m2,m1);
+				}
+				bucket_deallocate(h);
+			}
+		}
+	}
 
 
 	void bucket_allocate(handle_t h)
 	{
 		auto N=handle_ops::handle2size(h);
-		if(!allocated_mask[h]) {
+		if(!masktest(allocated_mask,h)) {
 			lower_static_ptr[h]=allocator_traits::allocate(*this,N);
 		}
-		allocated_mask[h]=true;
+		maskset(allocated_mask,h);
 	}
 
 	void bucket_deallocate(handle_t h)
 	{
 		auto N=handle_ops::handle2size(h);
-		if(allocated_mask[h]) {
+		if(masktest(allocated_mask,h)) {
 			allocator_traits::deallocate(*this,lower_static_ptr[h],N);
 		}
-		allocated_mask[h]=false;
+		maskclear(allocated_mask,h);
 	}
 
-	void bucket_destroy(handle_t h)
-	{
-		if(!occupied_mask[h])
-			return;
 
-		size_t N=handle_ops::handle2size(h);
-		pointer_type bdestroy=lower_static_ptr[h];
-		pointer_type edestroy=lower_static_ptr[h]+handle_ops::handle2size(h);
-		if(h==head){
-			bdestroy=head_ptr;
-		}
-		if(h==tail){
-			edestroy=tail_ptr;
-		}
-		full_mask[h]=false;
-		for(pointer_type b=bdestroy;b != edestroy;++b){
-			allocator_traits::destroy(*this,b);
-		}
-		if(h==head && h==tail)
-		{
-			prev[h]=h;
-			next[h]=h;
-			tail_ptr=lower_static_ptr[head];
-			head_ptr=lower_static_ptr[head];
-		}
-		else if(h==tail)
-		{
-			handle_t newtail=prev[tail];
-			tail=
-			next[newtail]=newtail;
-			prev[tail]=tail;
-
-
-		}
-	}
-
-	size_t full_size() const{
-		return handle_ops::mask2size(full_mask);
-	}
 
 
 };
