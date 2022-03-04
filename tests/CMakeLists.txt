@@ -8,3 +8,6 @@ add_executable(allocator_aware_container_test allocator_aware_container_test.cpp
 
 set(CMAKE_CXX_STANDARD 20)
 add_executable(geometric_list_test geometric_list_test.cpp)
+
+set(CMAKE_CXX_STANDARD 20)
+add_executable(geometric_list_benchmar geometric_list_benchmark.cpp)

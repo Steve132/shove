@@ -72,43 +72,110 @@ struct handle_ops{
 	}
 };
 
+template<unsigned int N>
+static inline uint8_t find_handle_index(mask_t d,const uint8_t* aptr){
+	using U=bitwidth_int<N>;
+	U dex=(U)d;
+	std::array<uint8_t,N> a{};
+	for(size_t i=0;i<N;i++) a[i]=aptr[i];
+
+	std::array<U,N> bs{};
+	for(size_t i=0;i<N;i++){
+		bs[i]+=((U)1) << a[i];
+	}
+
+	uint8_t cnt=0;
+	for(size_t i=0;i<N;i++){
+		cnt +=(dex >= bs[i]);
+	}
+	return cnt;
+}
+
+template<class T, T... inds, class F>
+static inline constexpr void loop(std::integer_sequence<T, inds...>, F&& f) {
+	(f(std::integral_constant<T, inds>{}), ...);// C++17 fold expression
+}
+
+template<class T, T count, class F>
+static inline constexpr void loop(F&& f) {
+	loop(std::make_integer_sequence<T, count>{}, std::forward<F>(f));
+}
+
+
+static inline uint8_t find_handle_index2(size_t i,mask_t sz,
+	const std::array<uint8_t,num_buckets>& a)
+{
+	uint8_t sel=std::bit_width(std::min(i,size_t(sz)))/8;
+	block_index_t out;
+	loop<block_index_t,8>([sel,a,&out](auto x){
+		if(sel==x){
+			out=find_handle_index<x*8>(x*8,a.begin());
+		}
+	});
+	return out;
+}
+
+template<class geo_list,bool IsConst>
+class geolist_iterator;
 
 //N must be a power of two
 template<class T,class Allocator=std::allocator<T>>
-class geometric_bucket_set: protected Allocator{
+class geometric_block_set: protected Allocator{
 private:
 	static constexpr handle_t H=num_buckets;
-public:
+protected:
 	using allocator_type=Allocator;
 	using allocator_traits=std::allocator_traits<allocator_type>;
-	using pointer_type=T*;
 
-	pointer_type head_ptr;
-	pointer_type tail_ptr;
-	alignas(64) std::array<handle_t,H> block_sequence;
+	using value_type=typename allocator_traits::value_type;
+	using size_type=typename allocator_traits::size_type;
+	using difference_type=typename allocator_traits::difference_type;
+	using reference=value_type&;
+	using const_reference=const value_type&;
+	using pointer=typename allocator_traits::pointer;
+	using const_pointer=typename allocator_traits::const_pointer;
+
+	handle_t head;				//this is just so it's not two lookups to get the head and tail handles. They're still always in block_sequence 0 and the end
+	handle_t tail;
 	block_index_t block_count; //this is chosen so that head and tail handle are in cache if the bucketset itself is...todo pointers?
 
+	size_t head_gap;	//todo should this be size or mask?  size is correct.  mask allows for cache line behavior.
+	size_t tail_gap;
+
+	alignas(64) std::array<handle_t,H> block_sequence; //do you need next[h] and prev[h] to cache how to jump for iterators?  That's the simplest but it doesn't have to be fast.
 	std::array<T*,H> lower_static_ptr;
 	mask_t allocated_mask;	//mask for the ones which have memory.
 	mask_t occupied_mask;	//mask for the ones which have any elements including head and tail.
+	std::array<block_index_t,H> block_locations;
+	std::array<mask_t,H> block_indices;
 
-	geometric_bucket_set()
-	{
-		allocated_mask=0;
-		blank(0);
+	block_index_t identify_bucket(size_t i) const
+	{//This search can be faster if you put the half and half subsets of the bits in each to get a less than greater than.
+	//e.g. [3 0 1 2] -> [1000 0001 0010 0100] -> 1001  vs 0110  is the first compare.    If its less than it's in one half or the other and you can recurse
+	//
+		//auto diff=head_ptr-lower_static_pointer[block_sequence[0]];
+		block_index_t idx=find_handle_index2(i+head_gap,occupied_mask,block_sequence);
+		return idx;
 	}
 
-	void push_back_bucket() //TODO: you could use a size hint here to more intelligently push back the buckets.
+	void push_back_bucket()
 	{
 		handle_t h=next_available_bucket();
-
-		maskset(occupied_mask,h);
+		block_sequence[block_count++]=h;
+		tail=h;
+		tail_gap=handle_ops::handle2size(h);
+		rebuild_locations();
 	}
 	void push_front_bucket()
 	{
 		handle_t h=next_available_bucket();
 
-		maskset(occupied_mask,h);
+		std::rotate(block_sequence.begin(),block_sequence.begin()+block_count,block_sequence.end()+1);
+		block_sequence[0]=h;
+		head=h;
+		head_gap=handle_ops::handle2size(h);
+		block_count++;
+		rebuild_locations();
 	}
 	void pop_front_bucket(){
 		erase_bucket(0);
@@ -123,30 +190,93 @@ public:
 			return;
 
 		size_t N=handle_ops::handle2size(h);
-		pointer_type bdestroy=lower_static_ptr[h];
-		pointer_type edestroy=lower_static_ptr[h]+handle_ops::handle2size(h);
+		pointer bdestroy=block_begin(h);
+		pointer edestroy=block_end(h);
 
-		if(i==0){
-			bdestroy=head_ptr;
-		}
-		if(i==block_count-1){
-			edestroy=tail_ptr;
-		}
-		for(pointer_type b=bdestroy;b != edestroy;++b){
+
+		for(pointer b=bdestroy;b != edestroy;++b){
 			allocator_traits::destroy(*this,b);
 		}
 
 		if(block_count==1)
 		{
-			head_ptr=tail_ptr=lower_static_ptr[h]+N/2;
+			head_gap=tail_gap=N/2;
 			return;
 		}
+
 		maskset(occupied_mask,h);
 		std::rotate(block_sequence.begin()+i,block_sequence.begin()+i+1, block_sequence.end()+block_count);
 
+		if(i==0)
+		{
+			head_gap=0;
+		}
+		else if(i==(block_count-1))
+		{
+			tail_gap=0;
+		}
+		block_count--;
+
+		head=block_sequence[0];
+		tail=block_sequence[block_count-1];
+		rebuild_locations();
 		maybe_dealloc();
 	}
+
+	pointer head_ptr() {
+		return block_begin(head);
+	}
+	pointer tail_ptr()  {
+		return block_end(tail);
+	}
+
+	const_pointer head_ptr() const {
+		return block_begin(head);
+	}
+	const_pointer tail_ptr() const {
+		return block_end(tail);
+	}
+
+	const_pointer block_begin(handle_t h) const{
+		return block_begin_i(h);
+	}
+	pointer block_begin(handle_t h){
+		return block_begin_i(h);
+	}
+	pointer block_end(handle_t h) const{
+		return block_end_i(h);
+	}
+	pointer block_end(handle_t h){
+		return block_end_i(h);
+	}
+
+	pointer block_begin_i(handle_t h) const {
+		pointer p=lower_static_ptr[h];
+		if(h==head) {
+			p+=head_gap;
+		}
+		return p;
+	}
+	pointer block_end_i(handle_t h) const {
+		pointer p=lower_static_ptr[h]+handle_ops::handle2size(h);
+		if(h==tail){
+			p-=tail_gap;
+		}
+		return p;
+	}
 private:
+	block_index_t find_handle(handle_t h)
+	{
+		if(!masktest(occupied_mask,h)) return block_count;
+		return block_locations[h];
+	}
+
+	void rebuild_locations()
+	{
+		for(block_index_t i=0;i<block_count;i++){
+			block_locations[block_sequence[i]]=i;
+		}
+	}
 
 	void blank(handle_t h)
 	{
@@ -159,10 +289,15 @@ private:
 		maskset(occupied_mask,h);
 	}
 
-	handle_t next_available_bucket() {
-		mask_t avail=~occupied_mask;
-		if(avail == 0) {
-			//TODO: out of memory.
+	handle_t next_available_bucket(mask_t m=~mask_t(1)) {
+		mask_t avail=(~occupied_mask) & m;
+		if((avail) == 0) {
+			if(m==~mask_t(1)){
+				//TODO: out of memory.
+			}
+			else {
+				return 0xFF; //none are available matching the criteria
+			}
 		}
 		mask_t preallocated=(allocated_mask & avail);
 		if(preallocated)
@@ -176,6 +311,8 @@ private:
 
 	void maybe_dealloc()
 	{
+		return;  //TODO: we don't want to deallocate in case of a reserve.
+
 		int cnt=0;
 		handle_t m1=0,m2=0;
 		for(unsigned int i=block_count;i<H;i++)
@@ -211,108 +348,180 @@ private:
 		maskclear(allocated_mask,h);
 	}
 
+protected: //LIST INTERFACE
+	geometric_block_set()
+	{
+		allocated_mask=0;
+		blank(0);
+	}
+	size_t size() const{
+		return static_cast<size_t>(handle_ops::mask2size(occupied_mask))
+			   -static_cast<size_t>(head_gap)
+			   -static_cast<size_t>(tail_gap);
+	}
 
-
-
+	template<class ...Args>
+	void emplace_back(Args&& ...args)
+	{
+		if(tail_gap == 0)
+		{
+			push_back_bucket();
+		}
+		tail_gap--;
+		allocator_type::construct(*this,tail_ptr(),std::forward<Args>(args)...);
+	}
+	void push_back(const T& t)
+	{
+		emplace_back(t);
+	}
+	template<class ...Args>
+	void emplace_front(Args&& ...args)
+	{
+		if(head_gap == 0)
+		{
+			push_front_bucket();
+		}
+		head_gap--;
+		allocator_type::construct(*this,head_ptr(),std::forward<Args>(args)...);
+	}
+	void push_front(const T& t)
+	{
+		emplace_front(t);
+	}
+	size_type max_size() const noexcept
+	{
+		return size_t(1) << (num_buckets+lg_max_bucket_size+lg_min_bucket_size);
+	}
+	void reserve(size_t s)
+	{
+		while(handle_ops::mask2size(allocated_mask) < s){
+			next_available_bucket();
+		}
+	}
+	void resize(size_type s)
+	{
+		reserve(s);
+		//Todo just copy using the iterator stuff.
+	}
+	void resize( size_type s, const value_type& value )
+	{
+		reserve(s);
+	}
 };
+
+template<class geolist,class pointer_type>
+struct iterator {
+public:
+	using value_type = typename geolist::value_type;
+	using reference = typename geolist::reference;
+	using pointer = typename geolist::pointer_type;
+	using iterator_category = std::random_access_iterator_tag;
+	using iterator_concept = std::random_access_iterator_tag;
+	using difference_type = typename geolist::difference_type;
+protected:
+	const geolist* parent;
+	pointer* ptr;
+	handle_t h;
+	//Todo this could also parent->static_index(h); which is a lookup into a table.  Same table
+	//for binary search for O(1) implementation potentially. (but worse for cache)
+
+	constexpr iterator(const geolist* tp, pointer tptr,handle_t th):
+		  parent{tp},ptr{ tptr },h{th}
+	{}
+
+public:
+	constexpr iterator() noexcept =default;
+	constexpr iterator(const iterator& it) noexcept =default;
+	constexpr iterator(iterator&& it) noexcept =default;
+
+	constexpr bool operator==(const iterator& other) const noexcept{ return ptr == other.ptr; }
+	constexpr bool operator!=(const iterator& other) const noexcept{ return ptr != other.ptr; }
+
+	constexpr reference operator*() const noexcept{ return *ptr; }
+	constexpr pointer operator->() const noexcept { return ptr; }
+
+	constexpr iterator& operator++() noexcept {
+		++ptr;
+		if(ptr == parent->block_end(h))
+		{
+			if(h==parent->tail){
+				return *this;
+			}
+			h=parent->find_handle(h)+1;
+			ptr=parent->block_begin(h);
+		}
+		return *this;
+	}
+	constexpr iterator operator++(int) noexcept { iterator tmp(*this); ++(*this); return tmp; }
+	constexpr iterator& operator--() noexcept {
+		if(ptr == parent->block_begin(h))
+		{
+			if(h==parent->head){
+				return *this;
+			}
+			h=parent->find_handle(h)-1;
+			ptr=parent->block_end(h);
+		}
+		--ptr;
+		return *this;
+	}
+	constexpr iterator operator--(int) noexcept { iterator tmp(*this); ++(*this); return tmp; }
+
+
+	constexpr iterator& operator+=(const difference_type other) noexcept
+	{
+		pointer be=parent->block_end(h);
+		pointer np=ptr+other;
+		if(np < be){
+			ptr=np;
+		}
+		else{
+
+		}
+		return *this;
+	}
+	constexpr iterator operator+(const difference_type other) const noexcept
+	{ iterator tmp(*this); tmp+=other; return tmp; }
+
+/*
+	constexpr iterator& operator-=(const difference_type other) noexcept { m_iterator -= other; return *this; }
+	constexpr iterator operator-(const difference_type other) const noexcept { return iterator(m_iterator - other); }
+	constexpr difference_type operator-(const iterator& other) const noexcept { return std::distance(m_iterator, other.m_iterator); }
+	constexpr reference operator[](std::size_t index) const { return m_iterator[index]; }
+
+
+
+
+
+	constexpr bool operator<(const iterator& other) const noexcept { return m_iterator < other.m_iterator; }
+	constexpr bool operator>(const iterator& other) const noexcept { return m_iterator > other.m_iterator; }
+	constexpr bool operator<=(const iterator& other) const noexcept { return m_iterator <= other.m_iterator; }
+	constexpr bool operator>=(const iterator& other) const noexcept { return m_iterator >= other.m_iterator; }
+*/
+};
+
 
 }
 
 
-/*
+
 template<class T,class Allocator=std::allocator<T>
 		 >
-class geometric_list: protected Allocator
+class geometric_list: protected geometric_list_detail::geometric_block_set<T,Allocator>
 {
 public:
 	using allocator_type=Allocator;
+	using allocator_traits=std::allocator_traits<allocator_type>;
 
-private:
-	enum class direction_t{
-		FORWARD,BACKWARD
-	};
-
-	struct nodeblock_t;
-	struct node_type{
-		block_type block;
-		nodeblock_t* node_block;	//optimization this should be a smaller offset so node_type is faster.
-	};
-
-		using node_handle_t=int8_t;
-	//first and last are always locations 0,1
-	//all the others in between are at the end in arbitrary locations.
-
-		template<unsigned int SZ>
-		struct nodeblock_t: public
-							 std::array<node_type_t,SZ> nodes
-	{
-		std::array<size_t,SZ> index_lower;
-		std::array<size_t,SZ> index_upper;
-		std::array<uintptr_t,SZ> pointer_lower;
-		std::array<uintptr_t,SZ> pointer_upper;
-		std::array<int8_t,MAX_NODES> handles;
-		//number of items in the set (always at least two.  0 is current front, 1 is current back,
-
-	};
-	//rotate from two past the end
-	void push_back(const T& a,const T& init=T{}){
-		node_type_t& end=blocks[last_block_id];
-		if(end.size()==end.capacity()){
-			std::move();
-		}
-	}
-	size_t _size;
-public:
-	using value_type=T;
-	using difference_type=std::vector<T,allocator_type>::size_type;
+	using value_type=typename allocator_traits::value_type;
+	using size_type=typename allocator_traits::size_type;
+	using difference_type=typename allocator_traits::difference_type;
 	using reference=value_type&;
 	using const_reference=const value_type&;
-	using pointer=std::allocator_traits<allocator_type>::pointer;
-	using const_pointer=std::allocator_traits<allocator_type>::const_pointer;
+	using pointer=typename allocator_traits::pointer;
+	using const_pointer=typename allocator_traits::const_pointer;
 
-	struct iterator {
-	private:
-		block_collection_type::iterator bit;
-		block_type::iterator it;
-
-	public:
-		using value_type = Type;
-		using reference = value_type&;
-		using pointer = value_type*;
-		using iterator_category = std::random_access_iterator_tag;
-		using difference_type = std::ptrdiff_t;
-		iterator& operator++(){
-			it++;
-			if(it==bit->block.end()){
-				bit++;
-			}
-		}
-		//using iterator_concept = std::contiguous_iterator_tag;
-
-		constexpr iterator(Type* iter = nullptr) : m_iterator{ iter } {}
-
-		constexpr bool operator==(const iterator& other) const noexcept { return m_iterator == other.m_iterator; }
-		constexpr bool operator!=(const iterator& other) const noexcept { return m_iterator != other.m_iterator; }
-		constexpr reference operator*() const noexcept { return *m_iterator; }
-		constexpr pointer operator->() const noexcept { return m_iterator; }
-		constexpr iterator& operator++() noexcept { ++m_iterator; return *this; }
-		constexpr iterator operator++(int) noexcept { iterator tmp(*this); ++(*this); return tmp; }
-		constexpr iterator& operator--() noexcept { --m_iterator; return *this; }
-		constexpr iterator operator--(int) noexcept { iterator tmp(*this); --(*this); return tmp; }
-		constexpr iterator& operator+=(const difference_type other) noexcept { m_iterator += other; return *this; }
-		constexpr iterator& operator-=(const difference_type other) noexcept { m_iterator -= other; return *this; }
-		constexpr iterator operator+(const difference_type other) const noexcept { return iterator(m_iterator + other); }
-		constexpr iterator operator-(const difference_type other) const noexcept { return iterator(m_iterator - other); }
-		constexpr iterator operator+(const iterator& other) const noexcept { return iterator(*this + other.m_iterator); }
-		constexpr difference_type operator-(const iterator& other) const noexcept { return std::distance(m_iterator, other.m_iterator); }
-		constexpr reference operator[](std::size_t index) const { return m_iterator[index]; }
-		constexpr bool operator<(const iterator& other) const noexcept { return m_iterator < other.m_iterator; }
-		constexpr bool operator>(const iterator& other) const noexcept { return m_iterator > other.m_iterator; }
-		constexpr bool operator<=(const iterator& other) const noexcept { return m_iterator <= other.m_iterator; }
-		constexpr bool operator>=(const iterator& other) const noexcept { return m_iterator >= other.m_iterator; }
-	};
-};*/
-
+};
 }
 
 
