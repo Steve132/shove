@@ -20,38 +20,61 @@ def genB():
 B=genB()
 nB=[~x for x in B]
 
-def updater(I,nB,bottom,top):
-
+def find_handle_step(I,nB,bottom,top):
 	bottom_out=bottom
 	top_out=top
 
 	testmask = bottom | (top & nB)
 	a=I >= testmask
 	if(a):
-		bottom_out=testmask
+		bottom_out=testmask			
 	else:
-		top_out=testmask
+		top_out=testmask			
 
 	print(bottom,top,I,nB,testmask,uint(a,H),bottom_out,top_out)
 	return bottom_out,top_out,a
 
 
-def find_a(I):
-	zeros=~uint(0,H)
-	ones=uint(0,H)
-	print(al(["m1","m2","I","nB","test","a","m1_out","m2_out"],9))
-	ones,zeros,a2=updater(I,nB[2],ones,zeros)
-	ones,zeros,a1=updater(I,nB[1],ones,zeros)
-	ones,zeros,a0=updater(I,nB[0],ones,zeros)
-	result=(uint(a2,3) << 2 | uint(a1,3) << 1 | uint(a0,3) << 0 )
+def find_handle(I):
+	bottom=uint(0,H)
+	top=~uint(0,H)
+	print(al(["bottom","top","I","nB","test","a","bottom_out","top_out"],9))
+	result=uint(0,lH)
+	for rbi in range(lH):
+		bottom,top,a=find_handle_step(I,nB[lH-1-rbi],bottom,top)
+		result|=a << lH-1-rbi
 	print(int(I),I,int(result))
 
 
 
-#find_a(uint(62,8))
+def find_bottom_step(r,nB,bottom,top):
+	bottom_out=bottom
+	top_out=top
 
-for x in range(256):
-	find_a(uint(x,8))
+	testmask = bottom | (top & nB)
+	if(r):
+		bottom_out=testmask			
+	else:
+		top_out=testmask			
+
+	print(bottom,top,nB,testmask,uint(r,H),bottom_out,top_out)
+	return bottom_out,top_out
+
+def find_bottom(r):
+	bottom=uint(0,H)
+	top=~uint(0,H)
+	print(al(["bottom","top","r","nB","test","a","bottom_out","top_out"],9))
+	result=uint(0,lH)
+	for rbi in range(lH):
+		trbi=lH-1-rbi
+		bottom,top=find_bottom_step((r>>trbi) & 1,nB[trbi],bottom,top)
+	print(r,uint(bottom,lH),int(bottom))
+
+#for x in range(1 << H):
+#	find_handle(x)
+
+for x in range(H):
+	find_bottom(x)
 
 #is the gfaffine method workable too?
 #how do mul div rem factor into this?
