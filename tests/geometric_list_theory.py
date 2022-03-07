@@ -355,28 +355,70 @@ def gen_nB():
 		nB.append(NOT(b))
 	return nB
 
+
+
+def updater(a,cur,nB):
+	#x=nB if not(a) else NOT(nB)
+	#out = x & cur  | (nB if a else 0)
+	#truth table:
+
+	#a   :11110000
+	#cur :11001100
+	#nB: :10101010
+	#out: 11101000
+
+	#y = BC + AC + AB
+	#y = (A + B) (A + C) (B + C)
+	#!y = !A.!B + !A.!C + !B.!C
+	#with A,B=prev,C=nB,
+
+	#BC + A(C + B)
+	out = (cur & nB) | ((nB | cur) if a else 0)
+
+	#y = (B + A)C + AB
+	#y = AC + (A + C)B
+
+
+	return out
+
+def updater2(a1,a2,cur,nB,nB2):
+	cur=updater(a1,cur,nB)
+	cur=updater(a2,cur,nB2)
+
+	#a1   11111111111111110000000000000000
+	#a2   11111111000000001111111100000000
+	#cur: 11110000111100001111000011110000
+	#b1:  11001100110011001100110011001100
+	#b2:  10101010101010101010101010101010
+
+	#out: 11111110101010001110101010000000
+	#http://www.32x8.com/sop5_____A-B-C-D-E_____m_7-9-11-13-14-15-19-21-23-25-26-27-28-29-30-31___________option-8_____989781966378827597705
+	#http://www.32x8.com/pos5_____A-B-C-D-E_____m_7-9-11-13-14-15-19-21-23-25-26-27-28-29-30-31___________option-a_____989781966378827597705
+	#y = BE + CDE + BCD + ADE + ACE + ABD + ABC
+
+	#y = BE + ADE + ABD + CDE + BCD + ACE + ABC
+	#y  = (BE + ADE + ABD) + C(DE + BD + AE + AB)
+	#y  = (BE + ADE + ABD) + C(D(E + B) + A(E + B))
+	#y  = (BE + ADE + ABD) + C(D+A)(E+B)
+	#y = (B + E) (A + B + C) (A + B + D) (B + C + D) (A + C + E) (A + D + E) (C + D + E)
+	
+	return cur
+
 def compute_par_rank(r,nB):
 	result=0
 	a=[(((r >> i) & 1)==1) for i in range(len(nB))]
 
-	x=NOT(nB[0]) if a[0] else nB[0]
-	result = x & result
-	if(a[0]):
-		result|=nB[0]
-
-	x=NOT(nB[1]) if a[1] else nB[1]
-	result = x & result
-	if(a[1]):
-		result|=nB[1]
-
-	x=NOT(nB[2]) if a[2] else nB[2]
-	result = x & result
-	if(a[2]):
-		result|=nB[2]
-
-
+	result=updater(a[0],result,nB[0])
+	result=updater(a[1],result,nB[1])
+	result=updater(a[2],result,nB[2])
 
 	return result
+
+def make_ttable():
+	print("ttable")
+	print(abin(NOT(nB[0])))
+	print(abin(NOT(nB[1])))
+	print(abin(updater(False,NOT(nB[1]),NOT(nB[0]))))
 
 def ranktest():
 	nB=gen_nB()
@@ -384,19 +426,26 @@ def ranktest():
 		print(abin(b))
 	for x in range(1 << len(nB)):
 		print(abin(x),abin(compute_par_rank(x,nB)))
+
+	print(abin(NOT(nB[2])))
+	print(abin(NOT(nB[1])))
+	print(abin(NOT(nB[0])))
+	print(abin(updater2(True,True,NOT(nB[2]),NOT(nB[1]),NOT(nB[0]))))
+
 ranktest()
 
+#PHMINPOSUW is another option (minimum scan)
+#https://github.com/HJLebbink/asm-dude/wiki/VP2INTERSECTD_VP2INTERSECTQ
+#https://github.com/HJLebbink/asm-dude/wiki/VPERMI2W_D_Q_PS_PD
+#permute? extract? lots of options. Hm.
+#https://github.com/HJLebbink/asm-dude/wiki/VPTERNLOGD_VPTERNLOGQ
+#^this thing is just cool as hell for this purpose tbh.
+#https://github.com/HJLebbink/asm-dude/wiki/VTESTPD_VTESTPS
+#pdep
+#galois fields
+#de brujin sequence
 
 """
-x=NOT(nB[1]) if a[1] else nB[1]
-result = x & result
-if(a[1]):
-	result|=nB[1]
-
-http://www.32x8.com/pos3_____A-B-C_____m_3-6-7___________option-2_____999780965275837392718
-
-with A,C=nB,B=prev
-
 #include<cstdint>
 #include<cstdlib>
 #include<array>
@@ -523,5 +572,55 @@ static constexpr unsigned int LNUM_BITS=6;
 uint exponent_search(uint8_t R,size_t I,const std::array<mask_t,LNUM_BITS>& mP)
 {
    return bottom_index_dyn<LNUM_BITS>(R,mP);
+}
+
+#include<cstdint>
+#include<cstdlib>
+#include<array>
+
+
+using mask_t=size_t;
+
+
+using mask_t=size_t;
+static constexpr inline bool mbittest(uint8_t A,uint8_t bi){
+	if (((A >> bi) & 0x1) == 1) return true;
+	else return false;
+}
+
+static constexpr inline mask_t mbitmul(uint8_t A,uint8_t bi,mask_t M) {
+	return mbittest(A,bi) ? M : 0;
+}
+
+template<uint8_t LN,int Li>
+struct bottom_index_unroll{
+	static constexpr mask_t compute(uint8_t R,const std::array<mask_t,LN>& nB) {
+		mask_t cur=bottom_index_unroll<LN,Li-1>::compute(R,nB);
+		mask_t nBt=nB[Li];
+
+		//BC + AC + AB
+		return (cur & nBt) | mbitmul(R,Li,cur) | mbitmul(R,Li,nBt);
+		//BC + A(C+B)
+		return (cur & nBt) | mbitmul(R,Li,(nBt | cur));
+	};
+};
+template<uint8_t LN>
+struct bottom_index_unroll<LN,-1>{
+	static constexpr mask_t compute(uint8_t R,const std::array<mask_t,LN>& nB) {
+		return 0;
+	};
+};
+
+
+template<uint8_t LN>
+static inline mask_t bottom_index(uint8_t R,const std::array<mask_t,LN>& nB) //nB[b] >> i is the b_th bit of ~B in lane i
+{
+	return bottom_index_unroll<LN,LN-1>::compute(R,nB);
+}
+
+static constexpr unsigned int LNUM_BITS=6;
+uint exponent_search(uint8_t R,size_t I,const std::array<mask_t,LNUM_BITS>& mP)
+{
+   return bottom_index<LNUM_BITS>(R,mP);
 }
 """
