@@ -187,14 +187,14 @@ int main(int argc,char** argv)
 	binary_search bs(lst);
 	ground_truth gt(lst);
 
-	if(verify_implementation(gt,bs,tc))
+	/*if(verify_implementation(gt,bs,tc))
 	{
 		std::cout << "Verified." << std::endl;
 	}
 	else
 	{
 		std::cout << "Not verified" << std::endl;
-	}
+	}*/
 
 
 	return 0;

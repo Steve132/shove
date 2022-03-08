@@ -81,41 +81,55 @@ for x in range(H):
 # https://en.wikipedia.org/wiki/De_Bruijn_sequence  D(2,n)..  Every possible 2^n occurs exactly once as a substring.
 
 """
-using mask_t=uint32_t;
-static inline void compute(mask_t I,mask_t& bottom,mask_t& top,mask_t nB)
+using mask_t=uint64_t;
+static constexpr unsigned int LNUM_BITS=6;
+static inline void find_handle_step(mask_t I,mask_t& bottom,mask_t& top,mask_t nB)
 {
     mask_t testmask = bottom | (top & nB);
-	bool a=I >= testmask;
-	if(a)
-    {
+	if(testmask < I)
 		bottom=testmask;
-    }
 	else
-    {
 		top=testmask;
-    }
-}
-static constexpr unsigned int LNUM_BITS=3;    
-static inline uint8_t rsearch(mask_t I,const std::array<mask_t,LNUM_BITS>& mP)
+}    
+uint8_t find_handle(mask_t I,const std::array<mask_t,LNUM_BITS>& mP)
 {
+    std::array<mask_t,LNUM_BITS> mB=mP;
     mask_t bottom=0;
     mask_t top=~mask_t(0);
     
-    compute(I,bottom,top,mP[4]);
-    compute(I,bottom,top,mP[3]);
-    compute(I,bottom,top,mP[2]);
-    compute(I,bottom,top,mP[1]);
-    compute(I,bottom,top,mP[0]);
+    find_handle_step(I,bottom,top,mB[5]);
+    find_handle_step(I,bottom,top,mB[4]);
+    find_handle_step(I,bottom,top,mB[3]);
+    find_handle_step(I,bottom,top,mB[2]);
+    find_handle_step(I,bottom,top,mB[1]);
+    find_handle_step(I,bottom,top,mB[0]);
     
     return std::bit_floor(bottom);
 }
-
-
-
-uint exponent_search(uint8_t R,size_t I,const std::array<mask_t,LNUM_BITS>& mP)
+static inline void find_bottom_step(bool r,mask_t& bottom,mask_t& top,mask_t nB)
 {
-   return rsearch(I,mP);
+    mask_t testmask = bottom | (top & nB);
+	if(r)
+		bottom=testmask;
+	else
+		top=testmask;
 }
+mask_t find_bottom(uint8_t r,const std::array<mask_t,LNUM_BITS>& mP)
+{
+    std::array<mask_t,LNUM_BITS> mB=mP;
+    mask_t bottom=0;
+    mask_t top=~mask_t(0);
+    
+    find_bottom_step((r >> 5) & 1,bottom,top,mB[5]);
+    find_bottom_step((r >> 4) & 1,bottom,top,mB[4]);
+    find_bottom_step((r >> 3) & 1,bottom,top,mB[3]);
+    find_bottom_step((r >> 2) & 1,bottom,top,mB[2]);
+    find_bottom_step((r >> 1) & 1,bottom,top,mB[1]);
+    find_bottom_step((r >> 0) & 1,bottom,top,mB[0]);
+    
+    return bottom;
+}
+
 
 
 

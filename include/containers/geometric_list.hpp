@@ -15,6 +15,14 @@ namespace shv
 //max num items? probably not.  Probably just use size_t like everything else.
 namespace geometric_list_detail{
 
+
+
+
+
+
+
+
+
 template<unsigned int N>
 using bitwidth_int=
 	std::conditional_t<(N <= 8), uint_least8_t,
