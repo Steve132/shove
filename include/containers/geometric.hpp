@@ -23,7 +23,7 @@ namespace geometric{
 			std::conditional_t<lg_max_handle_count==3,uint8_t,
 			std::conditional_t<lg_max_handle_count==4,uint16_t,
 			std::conditional_t<lg_max_handle_count==5,uint32_t,
-				uint_least64_t>
+				uint64_t>
 		>>;
 
 		static inline void maskset(mask_t& x,handle_t dex,bool condition=true){
@@ -63,8 +63,8 @@ namespace geometric{
 				handle_t h=*be++;
 				for(unsigned int rbit=0;rbit<lH;rbit++)
 				{
-					handle_ops::maskset(nB[rbit],h,((~rank) >> rbit) & 1);
-					//set the corresponding elements of the rank array.  e.g. B[0bXYZ][h] is set iff h is at index ~0bXYZ...  For example.
+					handle_ops::maskset(nB[rbit],h,((rank) >> rbit) & 1);
+					//set the corresponding elements of the rank array.  e.g. B[0bXYZ][h] is set iff h is at index 0bXYZ...  For example.
 					/*
 					 * arr=[1 4 3 0 2 5 6 7]
 					 *       bit position
