@@ -1,0 +1,11 @@
+#include<iterator>
+#include<functional>
+
+//implements std::input_or_outputiterator
+
+template<class R,class ...Args>
+struct continuation:
+    std::move_only_function<R (continuation&&,Args...,continuation&&)>
+{
+
+};
