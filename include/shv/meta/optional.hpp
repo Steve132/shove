@@ -14,14 +14,21 @@ namespace shv
         template<class T>
         struct is_optional<std::optional<T>> {
             static constexpr bool value=true;
+            using type=T;
         };
     }
 
     template<class T>
-    inline const bool is_optional_v=is_optional<T>::value;
+    inline constexpr bool is_optional_v=is_optional<T>::value;
+
+    template<class T>
+    using optional_result=is_optional<T>::type;
+    
+
 
     namespace concepts{
-
+        template<class T>
+        concept optional=is_optional_v<T>;
     }
     
 }
