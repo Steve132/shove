@@ -10,3 +10,7 @@ target_link_libraries(geometric_list_test PRIVATE shove_experimental)
 
 add_executable(geometric_list_benchmark geometric_list_benchmark.cpp)
 target_link_libraries(geometric_list_benchmark PRIVATE shove_experimental)
+
+
+add_executable(generator_test generator_test.cpp)
+target_link_libraries(generator_test PRIVATE shove_experimental)

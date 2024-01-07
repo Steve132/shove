@@ -124,7 +124,7 @@ struct allocator_aware_container: protected Allocator
 		:Allocator(std::move(alloc))
 	{}
 	constexpr allocator_aware_container(allocator_aware_container&& aac ) noexcept
-		:allocator_aware_container(std::forward<Allocator>(aac))
+		:allocator_aware_container(static_cast<Allocator&&>(aac))
 	{}
 	constexpr Allocator get_allocator() const noexcept
 	{

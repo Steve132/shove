@@ -22,10 +22,8 @@ namespace shv
     inline constexpr bool is_optional_v=is_optional<T>::value;
 
     template<class T>
-    using optional_result=is_optional<T>::type;
+    using optional_result=typename is_optional<T>::type;
     
-
-
     namespace concepts{
         template<class T>
         concept optional=is_optional_v<T>;

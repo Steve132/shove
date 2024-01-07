@@ -69,10 +69,52 @@ namespace geometric{
 					 * arr=[1 4 3 0 2 5 6 7]
 					 *       bit position
 					 * r  | 7 6 5 4 3 2 1 0
-					 * 0  | 0 0 0 1 1 0 1 1
-					 * 1  | 0 0 1 1 0 0 1 1
-					 * 2  | 0 1 0 0 1 1 1 0
+					 * 0  | 0 0 0 1 1 0 1 1		 
+					 * 1  | 0 0 1 1 0 0 1 1 <-mistake		 
+					 * 2  | 0 1 0 0 1 1 1 0		
 					 */
+
+					/*  <-smallest array index   
+					 * arr=[1 4 3 0 2 5 6 7]
+					 *       bit position
+					 * r  | 7 6 5 4 3 2 1 0
+					 * 0  | 0 0 0 1 1 0 1 1  //is it in the lower half of the array.
+					 * 1  | 0 0 1 1 0 1 1 0	 //is it in the lower half of it's respective half.	 
+					 * 2  | 0 1 0 0 1 1 1 0	 //is it in the lower half of it's second half.
+					 */
+
+					/*example: 31-4=27=0b11011 is mid point
+					x=0b00010110 (22) 
+					c=0b11111111
+					so is x <  0b00011011 (midpoint?) yes
+					so c = c & 0b00011011 (midpoint?)
+					so is x < 18 (midpoint?) no
+					so c =             how many storage bits to represent all possible permutations of n elements.
+					so is x < 22 (midpoint?) no		wouldn't it be n log n...no that's inefficient.
+					//so I don't care about the index into the location I care about which of the sizes it is
+					//so isn't that literally just start
+					//so...  do 
+					//2^1
+					//2^1+2^4
+					//2^1+2^4+2^3
+					//2^1+2^4+2^3+2^0
+					//2^1+2^4+2^3+2^0+2^2
+					//2^1+2^4+2^3+2^0+2^2+2^5
+					//2^1+2^4+2^3+2^0+2^2+2^5+2^6
+					//2^1+2^4+2^3+2^0+2^2+2^5+2^6+2^7
+					is the bottom half mask more or less than the index
+
+					m=masks[0]
+					t=x < c;
+					m=masks[1] & (m * t + ~m * ~t)
+					
+
+
+					So first, see if it's less than 
+
+	
+				
+					*/
 				}
 			}
 		}

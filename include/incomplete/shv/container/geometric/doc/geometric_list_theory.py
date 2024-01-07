@@ -321,6 +321,9 @@ ordered and this problem is solved."""
 	 110 | 0 0 1 1 1 1 1 1 |
 	 111 | 0 1 1 1 1 1 1 1 |
 
+    
+    
+
 
 	This is SIMD.     Specific computation is
 
@@ -337,6 +340,18 @@ ordered and this problem is solved."""
 	Also we're lucky because the lanes are constants.
 
 	i > r
+
+	  in     out[lane]     |
+	rank | 7 6 5 4 3 2 1 0 |
+	---------------------------
+	 000 | 0 0 0 0 0 0 0 0 |
+	 001 | 0 0 0 0 0 0 0 1 |
+	 010 | 0 0 0 0 0 0 1 1 |
+	 011 | 0 0 0 0 0 1 1 1 |
+	 100 | 0 0 0 0 1 1 1 1 |
+	 101 | 0 0 0 1 1 1 1 1 |
+	 110 | 0 0 1 1 1 1 1 1 |
+	 111 | 0 1 1 1 1 1 1 1 |
 """
 
 lR=3
