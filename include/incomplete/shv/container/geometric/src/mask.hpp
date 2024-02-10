@@ -14,8 +14,8 @@ namespace shv{
         struct mask{
         public:
             using index_t=uint_fast8_t;
-            constexpr static index_t lg2_min_size=lg2_min_size;
-            constexpr static index_t lg2_max_size=lg2_max_size;
+            constexpr static index_t lg2_min_size=_lg2_min_size;
+            constexpr static index_t lg2_max_size=_lg2_max_size;
             constexpr static uint8_t length=lg2_max_size-lg2_min_size;
             using uint_t=min_uint_t<length,true>;
             constexpr static uint8_t width=sizeof(index_t)*8;
