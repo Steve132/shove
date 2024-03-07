@@ -7,6 +7,8 @@ target_link_libraries(allocator_aware_container_test PRIVATE shove_experimental)
 
 add_executable(geometric_list_test geometric_list_test.cpp)
 target_link_libraries(geometric_list_test PRIVATE shove_experimental)
+target_generate_disassembly(geometric_list_test)
+
 
 add_executable(geometric_list_benchmark geometric_list_benchmark.cpp)
 target_link_libraries(geometric_list_benchmark PRIVATE shove_experimental)

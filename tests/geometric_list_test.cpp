@@ -1,6 +1,5 @@
 
 #include <shv/container/geometric/list.hpp>
-
 #include <shv/container/geometric/src/block_set.hpp>
 #include <shv/container/geometric/src/find_block.hpp>
 #include <iostream>
