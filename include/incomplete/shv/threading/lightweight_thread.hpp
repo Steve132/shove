@@ -1,8 +1,6 @@
 
 
 struct cthread{
-
-
     using id=size_t;
     std::function<void ()> task;
     

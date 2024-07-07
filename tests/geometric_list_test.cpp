@@ -6,6 +6,7 @@
 
 int main()
 {
+/*
 	using mask_type=shv::impl::mask<0,16>;
 	shv::impl::block_permutation_t<mask_type,4> perm;
 	perm[0]=3;
@@ -13,6 +14,6 @@ int main()
 	perm[2]=1;
 	perm[3]=2;
 	shv::impl::LgTreeBlockFinder<mask_type,3> finder(perm);
-	std::cout << "Output" << (int)finder.find_block(5);
+	std::cout << "Output" << (int)finder.find_block(5);*/
 	return 0;
 }

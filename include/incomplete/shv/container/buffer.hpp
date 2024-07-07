@@ -12,9 +12,7 @@ private:
 	using atraits=std::allocator_traits<Allocator>;
 	using aac=allocator_aware_container<Allocator>;
 	using aa_behaviors=allocator_aware_behaviors<Allocator>;
-
-
-
+	
 public:
 	using value_type=T;
 	using allocator_type=Allocator;

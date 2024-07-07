@@ -36,7 +36,7 @@ private:
 	}
 
 	template<bool on_move_assignment,class OtherAllocator>
-	static bool should_propagate_alloc_on_assignment(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
+	static constexpr bool should_propagate_alloc_on_assignment(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
 	{
 		if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
 		{

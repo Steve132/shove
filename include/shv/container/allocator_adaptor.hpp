@@ -14,7 +14,7 @@ template<class Allocator,
 	template<class ...HostTypes> class HostStruct,
 	class ...HTypes
 >
-class allocator_helper:Allocator
+class allocator_helper: Allocator
 {
 private:
 	using alloc_type=Allocator;
