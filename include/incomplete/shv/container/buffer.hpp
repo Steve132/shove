@@ -81,7 +81,6 @@ public:
 	constexpr buffer& operator=( const buffer& other );
 
 	constexpr buffer& operator=( buffer&& other ) noexcept(
-		aa_behaviors::nothrow_move_assignment
 	);
 
 	constexpr buffer& operator=( std::initializer_list<T> ilist );

@@ -1,154 +1,117 @@
-#ifndef ALLOCATOR_AWARE_CONTAINER_HPP
-#define ALLOCATOR_AWARE_CONTAINER_HPP
+#pragma once
 
 #include<memory>
 
+namespace shv{
+    template<class Allocator>
+    class allocator_aware_container: 
+        protected Allocator{ //specifically for empty base optimization but maybe this makes the design weird.
+    private:
+        using alloc_base_type=Allocator;
+        using traits=std::allocator_traits<Allocator>;
+    protected:
+        using Allocator::Allocator;
 
-namespace shv
-{
-template<class Container>
-struct allocator_operations
-{
-public:
+        constexpr allocator_aware_container(const allocator_aware_container& oa) noexcept(
+                noexcept(
+                    alloc_base_type(traits::select_on_container_copy_construction(oa))
+                )
+            ):
+            alloc_base_type(traits::select_on_container_copy_construction(oa))
+        {}
 
-};
-
-template<class Allocator>
-struct allocator_aware_behaviors
-{
-public:
-
+        //Note: All allocators passed to move constructors MUST be compatible with each other
+        //As in rebind (this is part of the constraints of allocator)
+        //This means that shallow moves are always possible.
+        constexpr allocator_aware_container(allocator_aware_container&& oa) noexcept(
+                noexcept(
+                    alloc_base_type(std::move(oa))
+                )
+            ):
+            alloc_base_type(std::move(oa))
+        {}
 private:
-	template<bool on_move_assignment>
-	static constexpr bool should_propagate_alloc_on_assignment_static() noexcept
-	{
-		if constexpr (std::allocator_traits<Allocator>::is_always_equal)
-		{
-			return false;
-		}
-		else if constexpr (on_move_assignment)
-		{
-			return std::allocator_traits<Allocator>::propagate_on_move_assignment;
-		}
-		else {
-			return std::allocator_traits<Allocator>::propagate_on_copy_assignment;
-		}
-	}
+        static constexpr bool _always_move_noexcept=traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value;
+        static constexpr bool _always_copy_noexcept=traits::propagate_on_container_move_assignment::value || traits::is_always_equal::value;
 
-	template<bool on_move_assignment,class OtherAllocator>
-	static constexpr bool should_propagate_alloc_on_assignment(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
-	{
-		if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
-		{
-			return true;
-		}
-		else{
-			return old_alloc!=other_alloc;
-		}
-	}
-	template<bool on_move_assignment,class OtherAllocator>
-	static const Allocator& get_propagated_allocator(const Allocator& old_alloc,const OtherAllocator& other_alloc) noexcept
-	{
-		if constexpr (should_propagate_alloc_on_assignment_static<on_move_assignment>())
-		{
-			return other_alloc;
-		}
-		else{
-			return old_alloc; //if they're equal then this doesn't matter.
-		}
-	}
-
+        //Note: If the move constructor for the value type is noexcept, then the move constructor for the allocator should be noexcept.           
+        //this is weird, it seems like if the move constructor for the value can throw, then the move constructor for the allocator can throw.
+        //but libstdc++ ignores this and libc++ only cares about the move constructor for the value prior to C++17.
+        //hmm destructors are default noexcept so clear is noexcept.
 protected:
-	template<class OtherAllocator,
-			 class ClearFunc,
-			 class ReAllocCopyFunc>
-	static const Allocator& copy_assignment(
-		const Allocator& old_alloc,
-		const OtherAllocator& other_alloc,
-		ClearFunc&& Clear,
-		ReAllocCopyFunc&& ReAllocCopy
-		)
-	{
-		bool prop=should_propagate_alloc_on_assignment<false>(other_alloc);
-		Clear(old_alloc,prop); //boolean decides if also delete.
-		const Allocator& new_alloc = prop ? other_alloc : old_alloc;
-		ReAllocCopy(new_alloc); //realloc if needed and copy
-		return new_alloc;
-	}
+        template<
+            class MoveFunc,
+            class DeepMoveFunc,
+            class ClearSelfFunc>
+        static constexpr void move_assignment(
+                            Allocator& self_alloc,
+                            Allocator&& other_alloc,
+                            MoveFunc&& move_func,
+                            DeepMoveFunc&& deep_move_func,
+                            ClearSelfFunc&& clear_self_func) noexcept(
+                                _always_move_noexcept
+                                && noexcept(move_func())
+                            )
+        {
+            if(!traits::is_always_equal::value && self_alloc!=other_alloc)
+            {
+                if constexpr(!traits::propagate_on_container_move_assignment::value){
+                    deep_move_func();
+                    return;
+                }
+                else{
+                    clear_self_func();
+                }
+            }
+            if constexpr(traits::propagate_on_container_move_assignment::value){
+                self_alloc=std::move(other_alloc);
+            }
+            move_func();
+        }
+        /*
+            copy:
+            same propogate |
+            0 0 | partial deep copy from other using self as allocator
+            0 1 | (full realloc required)
+                    deallocate self using self allocator
+                    propogate
+                    deep copy from other using self as allocator
+            1 0 : partial deep copy from other using self as allocator
+                  propogate
+            1 1 : partial deep copy from other using self as allocator
+            */
+        template<
+            class CopyFunc,
+            class ClearSelfFunc>
+        static constexpr void copy_assignment(
+                            Allocator& self_alloc,
+                            const Allocator& other_alloc,
+                            CopyFunc&& copy_func,
+                            ClearSelfFunc&& clear_self_func) noexcept(_always_copy_noexcept
+                            && noexcept(copy_func())
+                            )
+        {
+            
+            if constexpr(traits::propagate_on_container_copy_assignment::value){
+                if(!traits::is_always_equal::value && self_alloc!=other_alloc)
+                {
+                    clear_self_func();
+                }
+                self_alloc=other_alloc;
+            }
+            copy_func();
+        }
+    protected:
+        constexpr allocator_aware_container& =(const allocator_aware_container&)=default;
+        allocator_aware_container& =(allocator_aware_container&&) noexcept(
+			_always_move_noexcept
+		)=default;
 
-
-	static constexpr bool nothrow_move_assignment=should_propagate_alloc_on_assignment_static<true>();
-
-	template<
-		class OtherAllocator,
-		class ClearFunc,
-		class MoveFunc,
-		class ReAllocMoveFunc>
-	static const Allocator& move_assignment(const Allocator& old_alloc,
-											const OtherAllocator& other_alloc,
-											ClearFunc&& Clear,
-											MoveFunc&& Move,
-											ReAllocMoveFunc&& ReAllocMove) noexcept(nothrow_move_assignment)
-	{
-		bool prop=should_propagate_alloc_on_assignment<true>(other_alloc);
-		Clear(old_alloc,prop);
-
-		if(prop)
-		{
-			Move(other_alloc,true);
-			return other_alloc;
-		}
-		else
-		{
-			ReAllocMove(old_alloc);
-			return old_alloc;
-		}
-	}
-};
-
-template<class Allocator>
-struct allocator_aware_container: protected Allocator
-{
-	constexpr allocator_aware_container() noexcept(noexcept(Allocator()))
-		:Allocator()
-	{}
-	constexpr allocator_aware_container( const Allocator& alloc ) noexcept
-		:Allocator(
-			std::allocator_traits<Allocator>::select_on_container_copy_construction(alloc)
-		)
-	{}
-	constexpr allocator_aware_container( const allocator_aware_container& aac ) noexcept
-		:allocator_aware_container(static_cast<const Allocator&>(aac))
-	{}
-	constexpr allocator_aware_container( Allocator&& alloc ) noexcept
-		:Allocator(std::move(alloc))
-	{}
-	constexpr allocator_aware_container(allocator_aware_container&& aac ) noexcept
-		:allocator_aware_container(static_cast<Allocator&&>(aac))
-	{}
-	constexpr Allocator get_allocator() const noexcept
-	{
-		return *this;
-	}
-
-	//there should be no implicit assignment operators.
-	constexpr allocator_aware_container& operator=(allocator_aware_container&& other ) noexcept = delete;
-	template<class OtherAllocator>
-	constexpr allocator_aware_container& operator=(OtherAllocator&& other ) noexcept = delete;
-
-	constexpr allocator_aware_container& operator=(const allocator_aware_container& other ) noexcept = delete;
-	template<class OtherAllocator>
-	constexpr allocator_aware_container& operator=(const OtherAllocator& other ) noexcept = delete;
-
-	using allocator_type=Allocator;
-protected:
-
-
-};
-
+    public:
+        using allocator_type=alloc_base_type;
+        allocator_type get_allocator() const noexcept{
+            return *this;
+        }
+    };
 }
 
-
-
-
-#endif

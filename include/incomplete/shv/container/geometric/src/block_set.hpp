@@ -11,9 +11,8 @@ namespace shv{
         template<typename traits_tag>
         struct geometric_block_set_traits;
 
-
         template<typename T,typename Allocator,typename TraitsTag=typename std::allocator_traits<Allocator>::value_type>
-        class geometric_block_set{ //this should be an allocator-aware container.
+        class geometric_block_set{ //TODOD: this should be an allocator-aware container.
         public:
             using allocator_type = Allocator;
 

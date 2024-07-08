@@ -8,14 +8,13 @@ target_compile_features(shove INTERFACE cxx_std_20)
 
 target_sources(shove INTERFACE
 
-
 ${PROJECT_SOURCE_DIR}/include/shv/iterator/generator.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/thread/true_atomic.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/container/disjoint_set.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/container/allocator_adaptor.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/container/allocator_aware_container.hpp
-${PROJECT_SOURCE_DIR}/include/shv/container/buffer.hpp
-${PROJECT_SOURCE_DIR}/include/shv/container/polymorph.hpp
+${PROJECT_SOURCE_DIR}/include/incomplete/shv/container/buffer.hpp
+${PROJECT_SOURCE_DIR}/include/incomplete/shv/container/polymorph.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/meta/optional.hpp
 ${PROJECT_SOURCE_DIR}/include/shv/meta/min_int.hpp
 )
