@@ -4,7 +4,7 @@
 namespace shv {
 
 template <typename T, typename A>
-inline geometric_list<T,A>::geometric_list(){}
+geometric_list<T,A>::geometric_list(){}
 
 template <typename T, typename A>
 geometric_list<T,A>::geometric_list(const geometric_list&){}
@@ -42,7 +42,9 @@ geometric_list<T,A>& geometric_list<T,A>::operator=(std::initializer_list<value_
 
 // Capacity
 template <typename T, typename A>
-bool geometric_list<T,A>::empty() const noexcept{}
+bool geometric_list<T,A>::empty() const noexcept{
+    
+}
 
 template <typename T, typename A>
 typename geometric_list<T,A>::size_type geometric_list<T,A>::size() const noexcept{}

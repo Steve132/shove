@@ -2,12 +2,11 @@
 
 namespace shv{
 
-/*iterators shouldnt be invalidated by push or insert of blocks, so iterators should store the current pointer as well
-  as the current blockset pointer and the bit index of the pot they are in and the offset
+/*iterators shouldnt be invalidated by push or insert of blocks or move, so iterators should store the current pointer to the implementation as well
+  as the bit index of the pot they are in and the offset in that pot
 
   iterator+ then simply checks if the offset+arg > pot and if so it does the iterator global offset chase behavior.
 */  
-
 
 /*
 

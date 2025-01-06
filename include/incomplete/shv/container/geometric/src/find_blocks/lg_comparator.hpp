@@ -11,6 +11,7 @@ namespace shv{
             using mask_type=MaskType;
             using mask_index_t=typename MaskType::index_t;
             using mask_uint_t=typename MaskType::uint_t;
+            static constexpr mask_index_t mask_length=MaskType::length;
         protected:
             //static constexpr mask_index_t num_layers=std::bit_width(num_blocks);
 
@@ -75,4 +76,5 @@ namespace shv{
 }
 
 
-        
+
+

@@ -84,12 +84,18 @@ struct uninitialized_allocator_adaptor:
     }
 
     template<class U, class... Args>
-    void base_construct(U* p, Args&&... args){
+    constexpr void base_construct(U* p, Args&&... args)
+        noexcept(
+            noexcept(Allocator::construct(p, std::forward<Args>(args)...)
+        )
+    {
         Allocator::construct(p, std::forward<Args>(args)...);
     }
 
     template<class U>
-    void base_destroy(U* p){
+    constexpr void base_destroy(U* p) noexcept(
+        noexcept(Allocator::destroy(p))
+    ) {
         Allocator::destroy(p);
     }
     template<class U, class... Args>
@@ -97,7 +103,6 @@ struct uninitialized_allocator_adaptor:
 
     template<class U>
     constexpr void destroy(U* p) noexcept {}
-
 };
 
 

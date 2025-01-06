@@ -5,7 +5,7 @@
 namespace shv{
     namespace impl{
 
-                /*
+        /*
             Alternative algorithm:
 
             I have  x < s0 

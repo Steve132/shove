@@ -3,6 +3,8 @@
 
 #include "mask.hpp"
 
+#include "find_blocks/base.hpp"
+
 
 namespace shv{
     namespace impl{

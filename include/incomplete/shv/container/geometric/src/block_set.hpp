@@ -65,6 +65,23 @@ namespace shv{
                 //so is looking at the permutation and doing a linear search with a simd instruction.
                 //fastest will depend on size and implementation. 
             //base_t::mask_index_t find_block(base_t::mask_uint_t address);
+        /*
+        //simd binary search, simd linear search (when the mask_length is small enough), and galois field permutation are all options.
+//simd binary search is probably the best option for large mask_lengths?
+//simd linear search is probably the best option for small mask_lengths?
+//galois field permutation is probably the best option for medium mask_lengths?
+//it also might be possible to speed up this by automatically looking at the implementation where the
+//block list permutation is sorted then it would actually fastest to do the bitwise operations etc.
+//similarly for accelerated cases where only subparts of the permutation are sorted.
+//also, explicit instructions on some architectures for bit permutations
+//also bit permutation can be done in 2 instructions with pdep pext
+//also bit permutation can be done in bitwise lg2 parallel probably...maybe with unique masks for the type of permutation. 
+
+        */
+        
+        
+        
+        
         };
 
 
